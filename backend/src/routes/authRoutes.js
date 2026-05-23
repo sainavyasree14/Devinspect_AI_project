@@ -38,9 +38,20 @@ router.get(
 );
 
 // ── GitHub OAuth ──────────────────────────────────────────────────────────────
+// Configured = any non-empty, non-placeholder value
+const isPlaceholder = (val) =>
+  !val ||
+  val.startsWith('your_') ||
+  val.startsWith('YOUR_') ||
+  val.startsWith('PASTE_') ||
+  val.toLowerCase().includes('placeholder') ||
+  val.toLowerCase().includes('your_real') ||
+  val === 'your_github_client_id_here' ||
+  val === 'your_github_client_secret_here';
+
 const githubConfigured =
-  process.env.GITHUB_CLIENT_ID &&
-  process.env.GITHUB_CLIENT_ID !== 'your_github_client_id_here';
+  !isPlaceholder(process.env.GITHUB_CLIENT_ID) &&
+  !isPlaceholder(process.env.GITHUB_CLIENT_SECRET);
 
 router.get('/github', (req, res, next) => {
   if (!githubConfigured) {

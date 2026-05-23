@@ -38,6 +38,11 @@ export const ANALYSIS_URL = `${API_ORIGIN}/api/analysis`;
 // Chat Endpoints
 export const CHAT_URL = `${API_ORIGIN}/api/chat/followup`;
 
+// Interview Endpoints
+export const INTERVIEW_QUESTION_URL = `${API_ORIGIN}/api/interview/question`;
+export const INTERVIEW_SESSION_URL  = `${API_ORIGIN}/api/interview/session`;
+export const INTERVIEW_EVALUATE_URL = `${API_ORIGIN}/api/interview/evaluate`;
+
 /**
  * Create fetch options with auth headers
  */

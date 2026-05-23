@@ -24,6 +24,7 @@ const OAuthCallbackPage = () => {
         name:        payload.name        || '',
         role:        payload.role        || 'user',
         currentMode: payload.currentMode || 'developer',
+        avatar:      payload.avatar      || '',
       };
 
       localStorage.setItem('devinspect-token', token);

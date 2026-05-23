@@ -9,13 +9,15 @@ export const oauthCallback = async (req, res) => {
       );
     }
 
-    const { _id, email, name, role, currentMode, isGoogleUser } = req.user;
+    const { _id, email, name, role, currentMode, avatar, _isNewOAuthUser } = req.user;
 
-    const token = generateToken(_id, { email, name, role, currentMode });
+    const token = generateToken(_id, { email, name, role, currentMode, avatar });
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-    // Send welcome email (non-blocking — never crashes the redirect)
-    sendWelcomeEmail(email, name).catch(() => {});
+    // Send welcome email only on first-ever OAuth login (non-blocking)
+    if (_isNewOAuthUser) {
+      sendWelcomeEmail(email, name).catch(() => {});
+    }
 
     res.redirect(`${frontendUrl}/oauth-callback?token=${token}`);
   } catch (err) {

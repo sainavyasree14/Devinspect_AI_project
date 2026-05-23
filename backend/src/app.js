@@ -10,6 +10,7 @@ import chatRoutes      from './routes/chatRoutes.js';
 import reviewRoutes    from './routes/reviewRoutes.js';
 import aiRoutes        from './routes/aiRoutes.js';
 import testRoutes      from './routes/testRoutes.js';
+import interviewRoutes from './routes/interviewRoutes.js';
 import { protect }     from './middleware/authMiddleware.js';
 import { isAdmin }     from './middleware/roleMiddleware.js';
 
@@ -29,10 +30,11 @@ app.use(express.json({ limit: '2mb' }));
 app.use(passport.initialize());
 
 /* ─── Public routes ──────────────────────────────── */
-app.use('/api/auth',     authRoutes);
-app.use('/api/review',   reviewRoutes);
-app.use('/api/ai',       aiRoutes);
-app.use('/api/test',     testRoutes);
+app.use('/api/auth',      authRoutes);
+app.use('/api/review',    reviewRoutes);
+app.use('/api/ai',        aiRoutes);
+app.use('/api/test',      testRoutes);
+app.use('/api/interview', interviewRoutes);
 
 /* ─── Protected routes ───────────────────────────── */
 app.use('/api/analysis',  analysisRoutes);

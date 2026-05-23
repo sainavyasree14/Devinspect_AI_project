@@ -25,11 +25,11 @@ const LoginPage = () => {
   useEffect(() => {
     const oauthError = searchParams.get('error');
     if (oauthError === 'oauth_failed') {
-      setError('Google sign-in failed. Please try again or use email login.');
+      setError('Sign-in failed. Please try again or use email login.');
     } else if (oauthError === 'google_not_configured') {
-      setError('Google OAuth is not configured yet. Please use email/password login.');
+      setError('Google OAuth is not configured. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to backend .env');
     } else if (oauthError === 'github_not_configured') {
-      setError('GitHub OAuth is not configured yet. Please use email/password login.');
+      setError('GitHub OAuth is not configured. Add your GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET to backend .env — get them at github.com/settings/developers');
     } else if (oauthError === 'google_failed') {
       setError('Google sign-in was cancelled or failed. Please try again.');
     } else if (oauthError === 'github_failed') {

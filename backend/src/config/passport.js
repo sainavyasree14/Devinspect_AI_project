@@ -24,21 +24,27 @@ const getOAuthPasswordHash = async () => {
   return _oauthPasswordHash;
 };
 
-const findOrCreateOAuthUser = async ({ email, name, githubUser = '', isGoogleUser = false }) => {
+const findOrCreateOAuthUser = async ({ email, name, avatar = '', githubUser = '', isGoogleUser = false }) => {
   let user = await User.findOne({ email });
+  let isNew = false;
   if (!user) {
     const hash = await getOAuthPasswordHash();
-    user = new User({ name, email, password: hash, githubUser, isGoogleUser });
+    user = new User({ name, email, password: hash, avatar, githubUser, isGoogleUser, isNewUser: true });
     user.$locals.skipPasswordHash = true;
     await user.save();
+    isNew = true;
   } else {
-    // Update name if it changed
-    if (user.name !== name) {
-      user.name = name;
+    const updates = {};
+    if (user.name !== name) updates.name = name;
+    if (avatar && user.avatar !== avatar) updates.avatar = avatar;
+    if (githubUser && user.githubUser !== githubUser) updates.githubUser = githubUser;
+    if (Object.keys(updates).length > 0) {
+      Object.assign(user, updates);
       user.$locals.skipPasswordHash = true;
       await user.save();
     }
   }
+  user._isNewOAuthUser = isNew;
   return user;
 };
 
@@ -66,8 +72,9 @@ if (
           const email = profile.emails?.[0]?.value?.toLowerCase().trim();
           if (!email) return done(new Error('No email returned from Google'), null);
 
-          const name = profile.displayName || email.split('@')[0];
-          const user = await findOrCreateOAuthUser({ email, name, isGoogleUser: true });
+          const name   = profile.displayName || email.split('@')[0];
+          const avatar = profile.photos?.[0]?.value || '';
+          const user   = await findOrCreateOAuthUser({ email, name, avatar, isGoogleUser: true });
 
           return done(null, user);
         } catch (err) {
@@ -82,21 +89,27 @@ if (
 }
 
 // ── GitHub ────────────────────────────────────────────────────────────────────
-const githubClientId = process.env.GITHUB_CLIENT_ID;
+const githubClientId     = process.env.GITHUB_CLIENT_ID;
 const githubClientSecret = process.env.GITHUB_CLIENT_SECRET;
 
-if (
-  githubClientId &&
-  githubClientSecret &&
-  githubClientId !== 'your_github_client_id_here' &&
-  githubClientSecret !== 'your_github_client_secret_here'
-) {
+const isGithubPlaceholder = (v) =>
+  !v ||
+  v.startsWith('your_') ||
+  v.startsWith('YOUR_') ||
+  v.startsWith('PASTE_') ||
+  v.toLowerCase().includes('placeholder') ||
+  v.toLowerCase().includes('your_real') ||
+  v === 'your_github_client_id_here' ||
+  v === 'your_github_client_secret_here';
+
+if (!isGithubPlaceholder(githubClientId) && !isGithubPlaceholder(githubClientSecret)) {
   passport.use(
     new GitHubStrategy(
       {
         clientID:     githubClientId,
         clientSecret: githubClientSecret,
-        callbackURL:  `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/auth/github/callback`,
+        callbackURL:  process.env.GITHUB_CALLBACK_URL ||
+                      `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/auth/github/callback`,
         scope:        ['user:email'],
       },
       async (_accessToken, _refreshToken, profile, done) => {
@@ -105,8 +118,9 @@ if (
           const email      = rawEmail.toLowerCase().trim();
           const name       = profile.displayName || profile.username || email.split('@')[0];
           const githubUser = profile.username || '';
+          const avatar     = profile.photos?.[0]?.value || '';
 
-          const user = await findOrCreateOAuthUser({ email, name, githubUser });
+          const user = await findOrCreateOAuthUser({ email, name, avatar, githubUser });
 
           return done(null, user);
         } catch (err) {

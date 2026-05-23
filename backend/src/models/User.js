@@ -32,9 +32,11 @@ const userSchema = new mongoose.Schema({
   customRules: { type: [customRuleSchema], default: [] },
   preferences: { type: preferencesSchema, default: () => ({}) },
   apiKey:      { type: String, default: '' },
+  avatar:      { type: String, default: '' },
   githubUser:  { type: String, default: '' },
   githubToken: { type: String, default: '' },
   isGoogleUser:{ type: Boolean, default: false },
+  isNewUser:   { type: Boolean, default: true },
   lastLogin:   { type: Date, default: null },
   activityLog: { type: [activityLogSchema], default: [] },
 }, { timestamps: true });
