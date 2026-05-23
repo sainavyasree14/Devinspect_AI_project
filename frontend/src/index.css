@@ -1,0 +1,158 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* 🌸 LIGHT PINK PREMIUM UI (CLEAN + SOFT) */
+
+    /* Background (soft pink-white base) */
+    --background: 340 100% 98%;
+    --foreground: 340 25% 18%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 340 25% 18%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 340 25% 18%;
+
+    /* 🌸 Primary Pink */
+    --primary: 340 80% 72%;
+    --primary-foreground: 0 0% 100%;
+
+    /* 💜 Secondary Soft Purple */
+    --secondary: 270 55% 78%;
+    --secondary-foreground: 340 25% 15%;
+
+    /* 💖 Accent Pink */
+    --accent: 320 65% 78%;
+    --accent-foreground: 340 25% 12%;
+
+    /* 🧸 Muted (analysis / secondary content) */
+    --muted: 340 30% 96%;
+    --muted-foreground: 340 18% 50%;
+
+    /* ❌ Destructive */
+    --destructive: 0 70% 68%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* ✅ Success */
+    --success: 150 45% 65%;
+    --success-foreground: 0 0% 100%;
+
+    /* ⚠️ Warning */
+    --warning: 30 85% 75%;
+    --warning-foreground: 30 25% 18%;
+
+    /* ℹ️ Info (soft pink tint instead of blue) */
+    --info: 320 60% 80%;
+    --info-foreground: 340 25% 18%;
+
+    /* Borders */
+    --border: 340 20% 90%;
+    --input: 340 20% 92%;
+
+    /* Ring */
+    --ring: 340 80% 72%;
+
+    --radius: 1.25rem;
+
+    /* 🌸 SIDEBAR (LIGHT PINK CLEAN) */
+    --sidebar-background: 340 70% 97%;
+    --sidebar-foreground: 340 25% 18%;
+
+    --sidebar-primary: 340 80% 72%;
+    --sidebar-primary-foreground: 0 0% 100%;
+
+    --sidebar-accent: 340 25% 94%;
+    --sidebar-accent-foreground: 340 25% 18%;
+
+    --sidebar-border: 340 20% 92%;
+    --sidebar-ring: 340 80% 72%;
+
+    /* 🌈 Pink palette (soft layered tones) */
+    --cream: 340 100% 99%;
+    --baby-pink: 340 85% 82%;
+    --lavender: 270 55% 80%;
+    --blush-pink: 350 70% 82%;
+    --pastel-purple: 280 55% 78%;
+    --soft-peach: 25 85% 80%;
+    --warm-beige: 340 20% 94%;
+    --pastel-blue: 310 50% 82%;
+    --soft-lilac: 285 55% 82%;
+    --light-rose: 335 70% 80%;
+  }
+
+  .dark {
+    /* 🌙 Soft dark pink theme (not harsh) */
+
+    --background: 320 25% 12%;
+    --foreground: 340 20% 96%;
+
+    --card: 320 20% 16%;
+    --card-foreground: 340 20% 96%;
+
+    --popover: 320 20% 16%;
+    --popover-foreground: 340 20% 96%;
+
+    --primary: 340 85% 72%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 270 60% 75%;
+    --secondary-foreground: 0 0% 100%;
+
+    --accent: 320 70% 75%;
+    --accent-foreground: 0 0% 10%;
+
+    --muted: 320 18% 18%;
+    --muted-foreground: 340 18% 70%;
+
+    --border: 320 18% 24%;
+    --input: 320 18% 22%;
+
+    --ring: 340 85% 72%;
+
+    --radius: 1rem;
+
+    /* Sidebar dark */
+    --sidebar-background: 320 20% 16%;
+    --sidebar-foreground: 340 20% 96%;
+    --sidebar-accent: 320 18% 20%;
+    --sidebar-accent-foreground: 340 20% 92%;
+    --sidebar-border: 320 18% 24%;
+    --sidebar-ring: 340 85% 72%;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html {
+    scroll-behavior: smooth;
+    font-variant-numeric: tabular-nums;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+
+  code,
+  pre {
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    text-wrap: pretty;
+    letter-spacing: -0.02em;
+  }
+}

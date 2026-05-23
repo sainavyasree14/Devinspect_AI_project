@@ -1,0 +1,1 @@
+export { analyzeCode, checkAiHealth, AiServiceError } from "@/lib/aiService";
