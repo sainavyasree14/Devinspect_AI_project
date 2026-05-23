@@ -22,6 +22,8 @@ import {
 } from "chart.js";
 import { getReviewsFromServer, normalizeMode, computeAiScore } from "@/lib/historyStorage";
 import StreakCard from "@/components/StreakCard";
+import XPBar from "@/components/XPBar";
+import BadgeShowcase from "@/components/BadgeShowcase";
 import { DashboardSkeleton } from "@/components/LoadingSkeleton";
 import { useTranslation } from "react-i18next";
 
@@ -278,10 +280,23 @@ const DashboardPage = () => {
               </motion.div>
             </div>
 
-            {/* Streak Card */}
+            {/* Streak + XP Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10">
               <StreakCard />
+              <XPBar />
             </div>
+
+            {/* Badges */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="card-glass p-6 rounded-3xl mb-10"
+            >
+              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <Award className="w-5 h-5 text-yellow-500" /> Achievement Badges
+              </h3>
+              <BadgeShowcase />
+            </motion.div>
 
             <div className="grid grid-cols-1 gap-6">
               <motion.div

@@ -11,6 +11,8 @@ import reviewRoutes    from './routes/reviewRoutes.js';
 import aiRoutes        from './routes/aiRoutes.js';
 import testRoutes      from './routes/testRoutes.js';
 import interviewRoutes from './routes/interviewRoutes.js';
+import uploadRoutes    from './routes/uploadRoutes.js';
+import gamificationRoutes from './routes/gamificationRoutes.js';
 import { protect }     from './middleware/authMiddleware.js';
 import { isAdmin }     from './middleware/roleMiddleware.js';
 
@@ -26,7 +28,7 @@ app.use(cors({
   credentials: true,
 }));
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '10mb' }));
 app.use(passport.initialize());
 
 /* ─── Public routes ──────────────────────────────── */
@@ -35,6 +37,8 @@ app.use('/api/review',    reviewRoutes);
 app.use('/api/ai',        aiRoutes);
 app.use('/api/test',      testRoutes);
 app.use('/api/interview', interviewRoutes);
+app.use('/api/upload',    uploadRoutes);
+app.use('/api/gamification', gamificationRoutes);
 
 /* ─── Protected routes ───────────────────────────── */
 app.use('/api/analysis',  analysisRoutes);

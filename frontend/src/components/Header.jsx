@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext.jsx';
 import { useTheme } from '@/contexts/ThemeContext.jsx';
 import { Button } from '@/components/ui/button';
 import UserAvatar from '@/components/UserAvatar.jsx';
+import NotificationBell from '@/components/NotificationBell.jsx';
 import { useTranslation } from 'react-i18next';
 import {
   DropdownMenu,
@@ -91,6 +92,7 @@ const Header = ({ onMenuToggle, isMobileMenuOpen }) => {
         </div>
 
         <div className="flex items-center gap-3">
+          <NotificationBell />
           <Button
             variant="ghost"
             size="icon"

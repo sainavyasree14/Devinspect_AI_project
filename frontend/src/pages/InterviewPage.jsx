@@ -9,6 +9,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { INTERVIEW_QUESTION_URL, INTERVIEW_EVALUATE_URL } from '@/lib/apiConfig';
+import { useGamification } from '@/contexts/GamificationContext.jsx';
 import { useTranslation } from 'react-i18next';
 
 const COMPANIES = ['Any', 'Google', 'Amazon', 'Microsoft', 'Meta', 'Apple', 'Netflix', 'TCS', 'Infosys', 'Wipro', 'Flipkart', 'Zomato'];
@@ -50,6 +51,7 @@ const ScoreBar = ({ label, value, max = 20 }) => {
 
 const InterviewPage = () => {
   const { t } = useTranslation();
+  const { recordInterviewResult } = useGamification();
   const [difficulty, setDifficulty] = useState('medium');
   const [company, setCompany]       = useState('Any');
   const [category, setCategory]     = useState('Any');
@@ -141,6 +143,7 @@ const InterviewPage = () => {
       const data = await res.json();
       if (data.success && data.result) {
         setResult(data.result);
+        recordInterviewResult(data.result.score);
       } else {
         toast.error('Evaluation failed. Please try again.');
         setFinished(false);

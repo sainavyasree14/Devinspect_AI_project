@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { AuthProvider } from '@/contexts/AuthContext.jsx';
 import { ThemeProvider } from '@/contexts/ThemeContext.jsx';
 import { StreakProvider } from '@/contexts/StreakContext.jsx';
+import { GamificationProvider } from '@/contexts/GamificationContext.jsx';
 import { Toaster } from '@/components/ui/sonner';
 import ProtectedRoute from '@/components/ProtectedRoute.jsx';
 import ErrorBoundary from '@/components/ErrorBoundary.jsx';
@@ -25,6 +26,7 @@ const SwitchModePage = lazy(() => import('@/pages/SwitchModePage.jsx'));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage.jsx'));
 const ProfilePage = lazy(() => import('@/pages/ProfilePage.jsx'));
 const AdminPage = lazy(() => import('@/pages/AdminPage.jsx'));
+const LeaderboardPage = lazy(() => import('@/pages/LeaderboardPage.jsx'));
 const InterviewPage = lazy(() => import('@/pages/InterviewPage.jsx'));
 
 // ScrollToTop Component
@@ -88,6 +90,7 @@ const AnimatedRoutes = () => {
         <Route path="/profile" element={<ProtectedRoute><AppLayout><AnimatedRoute><ProfilePage /></AnimatedRoute></AppLayout></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute><AppLayout><AnimatedRoute><AdminPage /></AnimatedRoute></AppLayout></ProtectedRoute>} />
         <Route path="/interview" element={<ProtectedRoute><AppLayout><AnimatedRoute><InterviewPage /></AnimatedRoute></AppLayout></ProtectedRoute>} />
+        <Route path="/leaderboard" element={<ProtectedRoute><AppLayout><AnimatedRoute><LeaderboardPage /></AnimatedRoute></AppLayout></ProtectedRoute>} />
         
         {/* 404 Fallback */}
         <Route path="*" element={
@@ -121,6 +124,7 @@ function App() {
       <ThemeProvider>
         <AuthProvider>
           <StreakProvider>
+            <GamificationProvider>
             <Router>
               <ScrollToTop />
               <Suspense fallback={<PageLoader />}>
@@ -128,6 +132,7 @@ function App() {
               </Suspense>
               <Toaster position="top-right" richColors />
             </Router>
+            </GamificationProvider>
           </StreakProvider>
         </AuthProvider>
       </ThemeProvider>

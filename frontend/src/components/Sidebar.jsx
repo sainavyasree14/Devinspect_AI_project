@@ -11,7 +11,8 @@ import {
   LogOut,
   Shield,
   Brain,
-  Flame
+  Flame,
+  Trophy,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { useStreak } from '@/contexts/StreakContext.jsx';
@@ -29,8 +30,9 @@ const Sidebar = ({ isOpen, onClose }) => {
     { path: '/dashboard', label: t('nav.dashboard'), icon: LayoutDashboard, color: 'baby-pink' },
     { path: '/analyzer',  label: t('nav.analyzer'),  icon: Code2,           color: 'lavender' },
     { path: '/history',   label: t('nav.history'),   icon: History,         color: 'pastel-blue' },
-    { path: '/interview', label: t('nav.interview'), icon: Brain,           color: 'soft-peach' },
-    { path: '/switch-mode', label: t('nav.modeSelection'), icon: Zap,       color: 'soft-peach' },
+    { path: '/interview',   label: t('nav.interview'),     icon: Brain,           color: 'soft-peach' },
+    { path: '/leaderboard', label: 'Leaderboard',           icon: Trophy,          color: 'soft-peach' },
+    { path: '/switch-mode', label: t('nav.modeSelection'), icon: Zap,             color: 'soft-peach' },
   ];
 
   const bottomItems = [

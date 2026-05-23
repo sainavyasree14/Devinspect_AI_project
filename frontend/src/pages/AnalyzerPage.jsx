@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -20,7 +20,10 @@ import {
   Wand2,
   Share2,
   Users,
-  Gamepad2
+  Gamepad2,
+  Loader2,
+  X,
+  File,
 } from 'lucide-react';
 
 import {
@@ -42,6 +45,7 @@ import TypewriterText from '../components/TypewriterText.jsx';
 import MiniGame from '../components/MiniGame.jsx';
 import { useConfetti } from '../hooks/useConfetti.js';
 import { useStreak } from '../contexts/StreakContext.jsx';
+import { useGamification } from '../contexts/GamificationContext.jsx';
 
 import {
   saveReviewToServer,
@@ -50,7 +54,7 @@ import {
   clearAllReviewsFromServer,
   normalizeMode
 } from '../lib/historyStorage';
-import { API_ORIGIN, createAuthOptions } from '../lib/apiConfig';
+import { API_ORIGIN, createAuthOptions, UPLOAD_URL } from '../lib/apiConfig';
 
 import {
   Select,
@@ -64,6 +68,7 @@ const AnalyzerPage = () => {
   const { currentMode, currentUser, getAuthHeaders } = useAuth();
   const { celebrate } = useConfetti();
   const { recordReview } = useStreak();
+  const { recordAnalysis } = useGamification();
 
   // Multi-file state
   const [files, setFiles] = useState([]);
@@ -86,8 +91,21 @@ const AnalyzerPage = () => {
   const [showShareModal, setShowShareModal] = useState(false);
   const [showMiniGame, setShowMiniGame] = useState(false);
   const [currentAnalysisId, setCurrentAnalysisId] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false); // prevent duplicate submissions
-  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Explanation difficulty feature
+  const [explainDifficulty, setExplainDifficulty] = useState(
+    () => localStorage.getItem('devinspect-explain-difficulty') || 'medium'
+  );
+  const [showDifficultyMenu, setShowDifficultyMenu] = useState(false);
+  const [explainLoading, setExplainLoading]         = useState(false);
+  const [customExplanation, setCustomExplanation]   = useState('');
+  const difficultyMenuRef = useRef(null);
+
+  // Upload state
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [isDragging, setIsDragging]       = useState(false);
+
   // Repo integration simulations
   const [showRepoModal, setShowRepoModal] = useState(false);
   const [githubRepos] = useState([
@@ -98,6 +116,66 @@ const AnalyzerPage = () => {
   // Chat/Follow-up context simulation
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
+
+  // Close difficulty dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (difficultyMenuRef.current && !difficultyMenuRef.current.contains(e.target)) {
+        setShowDifficultyMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Persist difficulty preference
+  useEffect(() => {
+    localStorage.setItem('devinspect-explain-difficulty', explainDifficulty);
+  }, [explainDifficulty]);
+
+  // Reset custom explanation when new analysis runs
+  useEffect(() => {
+    setCustomExplanation('');
+  }, [result?.timestamp]);
+
+  const DIFFICULTY_PROMPTS = {
+    easy:   'Explain this code in very simple beginner-friendly language. Use easy words, explain line-by-line what each variable and function does, avoid technical jargon, and add real-life examples where possible. Teach it like explaining to a complete beginner.',
+    medium: 'Explain this code clearly with proper programming concepts and balanced technical depth. Cover the logic flow, key concepts used, and mention any optimizations. Suitable for an intermediate developer.',
+    hard:   'Explain this code like a senior software engineer reviewing production-level code. Include time complexity, space complexity, architecture reasoning, best practices, optimization suggestions, edge cases, and real interview-level analysis. Use professional engineering terminology.',
+  };
+
+  const handleRegenerateExplanation = async (difficulty) => {
+    if (!result) return;
+    setExplainLoading(true);
+    setShowDifficultyMenu(false);
+    setViewTab('explanation');
+    try {
+      const token = localStorage.getItem('devinspect-token');
+      const prompt = DIFFICULTY_PROMPTS[difficulty];
+      const res = await fetch(`${API_ORIGIN}/api/chat/followup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          message: prompt,
+          context: {
+            mode:          result.mode,
+            language:      result.language,
+            aiScore:       result.aiScore,
+            explanation:   result.explanation,
+            correctedCode: result.correctedCode,
+            errors:        result.errors,
+            suggestions:   result.suggestions,
+          },
+        }),
+      });
+      const data = await res.json();
+      setCustomExplanation(data.reply || result.explanation);
+    } catch {
+      toast.error('Failed to regenerate explanation.');
+    } finally {
+      setExplainLoading(false);
+    }
+  };
 
   // Load history and workspaces
   useEffect(() => {
@@ -253,6 +331,7 @@ const AnalyzerPage = () => {
       
       // Record streak
       recordReview(payload.aiScore);
+      recordAnalysis({ score: payload.aiScore, errors: payload.errors, mode, streak: 0 });
       
       const freshHistory = await getReviewsFromServer();
       setHistory(freshHistory);
@@ -277,23 +356,76 @@ const AnalyzerPage = () => {
     }
   };
 
-  // File upload handler
-  const handleFileUpload = (e) => {
-    const fileList = Array.from(e.target.files);
-    fileList.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const fileContent = event.target.result;
-        const newFile = { name: file.name, content: fileContent };
+  const ALLOWED_EXTS = ['.txt','.docx','.pdf','.c','.cpp','.java','.py','.js','.ts','.jsx','.tsx','.html','.css','.json','.rb','.go','.rs','.php','.swift','.kt'];
+  const MAX_SIZE_MB  = 5;
+
+  const validateFiles = (fileList) => {
+    const valid = [];
+    for (const f of fileList) {
+      const ext = '.' + f.name.split('.').pop().toLowerCase();
+      if (!ALLOWED_EXTS.includes(ext)) {
+        toast.error(`Unsupported format: ${f.name}`);
+        continue;
+      }
+      if (f.size > MAX_SIZE_MB * 1024 * 1024) {
+        toast.error(`${f.name} exceeds 5MB limit.`);
+        continue;
+      }
+      valid.push(f);
+    }
+    return valid;
+  };
+
+  // File upload handler — sends to backend for proper extraction
+  const handleFileUpload = async (fileList) => {
+    const validFiles = validateFiles(Array.from(fileList));
+    if (validFiles.length === 0) return;
+
+    setUploadLoading(true);
+    const formData = new FormData();
+    validFiles.forEach(f => formData.append('files', f));
+
+    try {
+      const token = localStorage.getItem('devinspect-token');
+      const res = await fetch(UPLOAD_URL, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Upload failed.');
+      }
+
+      data.files.forEach(f => {
+        const newFile = { name: f.name, content: f.content };
         setFiles(prev => {
           const updated = [...prev, newFile];
           setActiveFileIndex(updated.length - 1);
           return updated;
         });
-        toast.success(`Uploaded ${file.name}`);
-      };
-      reader.readAsText(file);
-    });
+      });
+
+      if (data.warnings?.length > 0) {
+        data.warnings.forEach(w => toast.warning(`${w.name}: ${w.error}`));
+      }
+
+      toast.success(`${data.files.length} file(s) extracted successfully.`);
+    } catch (err) {
+      toast.error(err.message || 'File extraction failed.');
+    } finally {
+      setUploadLoading(false);
+    }
+  };
+
+  // Drag-and-drop handlers
+  const handleDragOver  = (e) => { e.preventDefault(); setIsDragging(true); };
+  const handleDragLeave = ()  => setIsDragging(false);
+  const handleDrop      = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFileUpload(e.dataTransfer.files);
   };
 
   // Pull from GitHub simulation
@@ -487,9 +619,16 @@ ${result.correctedCode}
                   
                   {/* File Input and Git Actions */}
                   <div className="flex items-center gap-2">
-                    <label className="btn-secondary h-8 px-3 rounded-lg text-xs flex items-center gap-1.5 cursor-pointer font-bold border border-border/50 bg-background/50 hover:bg-muted/50">
-                      <Upload className="w-3.5 h-3.5" /> Upload File
-                      <input type="file" onChange={handleFileUpload} className="hidden" multiple />
+                    <label className={`btn-secondary h-8 px-3 rounded-lg text-xs flex items-center gap-1.5 cursor-pointer font-bold border border-border/50 bg-background/50 hover:bg-muted/50 ${uploadLoading ? 'opacity-50 pointer-events-none' : ''}`}>
+                      {uploadLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                      {uploadLoading ? 'Extracting...' : 'Upload File'}
+                      <input
+                        type="file"
+                        onChange={(e) => handleFileUpload(e.target.files)}
+                        className="hidden"
+                        multiple
+                        accept=".txt,.docx,.pdf,.c,.cpp,.java,.py,.js,.ts,.jsx,.tsx,.html,.css,.json,.rb,.go,.rs,.php,.swift,.kt"
+                      />
                     </label>
                     <Button variant="outline" size="sm" className="h-8 rounded-lg text-xs font-bold border-border/50" onClick={() => setShowRepoModal(true)}>
                       <GitBranch className="w-3.5 h-3.5 mr-1" /> Git Repo
@@ -503,13 +642,33 @@ ${result.correctedCode}
                   </div>
                 </div>
 
-                {/* Editor Textarea */}
-                <Textarea
-                  value={code}
-                  onChange={(e) => handleCodeChange(e.target.value)}
-                  placeholder="// Paste your raw code here, upload files, or import from GitHub..."
-                  className="font-mono text-sm leading-relaxed min-h-[380px] bg-background/50 rounded-2xl border-border/30 resize-none p-4"
-                />
+                {/* Editor Textarea with drag-drop */}
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`relative rounded-2xl transition-all ${isDragging ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''}`}
+                >
+                  {isDragging && (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-primary/10 rounded-2xl border-2 border-dashed border-primary pointer-events-none">
+                      <Upload className="w-8 h-8 text-primary mb-2" />
+                      <p className="text-sm font-bold text-primary">Drop files here</p>
+                      <p className="text-xs text-muted-foreground mt-1">.txt .docx .pdf .c .cpp .java .py .js</p>
+                    </div>
+                  )}
+                  {uploadLoading && (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm rounded-2xl">
+                      <Loader2 className="w-8 h-8 text-primary animate-spin mb-2" />
+                      <p className="text-sm font-bold text-primary">Extracting file content...</p>
+                    </div>
+                  )}
+                  <Textarea
+                    value={code}
+                    onChange={(e) => handleCodeChange(e.target.value)}
+                    placeholder="// Paste your raw code here, upload files, or drag & drop..."
+                    className="font-mono text-sm leading-relaxed min-h-[380px] bg-background/50 rounded-2xl border-border/30 resize-none p-4"
+                  />
+                </div>
 
                 {/* Trigger Row */}
                 <div className="flex justify-between items-center mt-6">
@@ -580,11 +739,70 @@ ${result.correctedCode}
                       </div>
                     </div>
 
-                    {/* View Selection Tabs */}
-                    <div className="grid grid-cols-3 gap-2 mb-4 bg-muted/40 p-1 rounded-xl">
-                      <button onClick={() => setViewTab('diff')} className={`py-1.5 text-xs font-bold rounded-lg ${viewTab === 'diff' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}>Diff Viewer</button>
-                      <button onClick={() => setViewTab('explanation')} className={`py-1.5 text-xs font-bold rounded-lg ${viewTab === 'explanation' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}>Summary</button>
-                      <button onClick={() => setViewTab('raw')} className={`py-1.5 text-xs font-bold rounded-lg ${viewTab === 'raw' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}>Prompt Output</button>
+                    {/* View Selection Tabs + Difficulty Selector */}
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="flex-1 grid grid-cols-3 gap-2 bg-muted/40 p-1 rounded-xl">
+                        <button onClick={() => setViewTab('diff')} className={`py-1.5 text-xs font-bold rounded-lg ${viewTab === 'diff' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}>Diff Viewer</button>
+                        <button onClick={() => setViewTab('explanation')} className={`py-1.5 text-xs font-bold rounded-lg ${viewTab === 'explanation' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}>Summary</button>
+                        <button onClick={() => setViewTab('raw')} className={`py-1.5 text-xs font-bold rounded-lg ${viewTab === 'raw' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'}`}>Prompt Output</button>
+                      </div>
+
+                      {/* Explanation Difficulty Selector */}
+                      <div className="relative" ref={difficultyMenuRef}>
+                        <button
+                          onClick={() => setShowDifficultyMenu(v => !v)}
+                          title="Change Explanation Difficulty"
+                          className={`h-8 w-8 flex items-center justify-center rounded-lg border transition-all ${
+                            showDifficultyMenu
+                              ? 'bg-primary/20 border-primary/40 text-primary'
+                              : 'border-border/40 bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                          }`}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path fillRule="evenodd" d="M2 2.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5V3a.5.5 0 0 0-.5-.5zM3 3H2v1h1z"/>
+                            <path d="M5 3.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5M5.5 7a.5.5 0 0 0 0 1h9a.5.5 0 0 0 0-1zm0 4a.5.5 0 0 0 0 1h9a.5.5 0 0 0 0-1z"/>
+                            <path fillRule="evenodd" d="M1.5 7a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5zM2 7h1v1H2zm0 3.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5zm1 .5H2v1h1z"/>
+                          </svg>
+                        </button>
+
+                        <AnimatePresence>
+                          {showDifficultyMenu && (
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.95, y: -4 }}
+                              animate={{ opacity: 1, scale: 1, y: 0 }}
+                              exit={{ opacity: 0, scale: 0.95, y: -4 }}
+                              transition={{ duration: 0.15 }}
+                              className="absolute right-0 top-10 z-50 w-52 card-glass rounded-2xl border border-border/40 shadow-xl overflow-hidden"
+                            >
+                              <div className="px-3 py-2 border-b border-border/30">
+                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Explanation Difficulty</p>
+                              </div>
+                              {[
+                                { key: 'easy',   label: 'Easy',   desc: 'Beginner-friendly, simple words',       color: 'text-green-500',  bg: 'hover:bg-green-500/10' },
+                                { key: 'medium', label: 'Medium', desc: 'Balanced, intermediate concepts',       color: 'text-orange-500', bg: 'hover:bg-orange-500/10' },
+                                { key: 'hard',   label: 'Hard',   desc: 'Senior-level, complexity & trade-offs', color: 'text-destructive', bg: 'hover:bg-destructive/10' },
+                              ].map(({ key, label, desc, color, bg }) => (
+                                <button
+                                  key={key}
+                                  onClick={() => {
+                                    setExplainDifficulty(key);
+                                    handleRegenerateExplanation(key);
+                                  }}
+                                  className={`w-full flex items-start gap-3 px-3 py-2.5 transition-all ${bg} ${
+                                    explainDifficulty === key ? 'bg-muted/40' : ''
+                                  }`}
+                                >
+                                  <span className={`text-xs font-bold mt-0.5 w-12 shrink-0 ${color}`}>{label}</span>
+                                  <span className="text-xs text-muted-foreground text-left leading-relaxed">{desc}</span>
+                                  {explainDifficulty === key && (
+                                    <span className={`ml-auto text-xs font-bold shrink-0 ${color}`}>✓</span>
+                                  )}
+                                </button>
+                              ))}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
                     </div>
 
                     {/* Active tab content */}
@@ -626,10 +844,46 @@ ${result.correctedCode}
 
                     {viewTab === 'explanation' && (
                       <div className="space-y-3">
-                        <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10">
-                          <p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-line">
-                            <TypewriterText text={result.explanation || 'No explanation available.'} speed={12} />
-                          </p>
+                        {/* Difficulty badge + Regenerate button */}
+                        <div className="flex items-center justify-between">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg capitalize ${
+                            explainDifficulty === 'easy'   ? 'bg-green-500/10 text-green-500' :
+                            explainDifficulty === 'medium' ? 'bg-orange-500/10 text-orange-500' :
+                                                             'bg-destructive/10 text-destructive'
+                          }`}>{explainDifficulty} mode</span>
+                          <button
+                            onClick={() => handleRegenerateExplanation(explainDifficulty)}
+                            disabled={explainLoading}
+                            className="flex items-center gap-1.5 text-[10px] font-bold text-primary hover:opacity-80 transition-opacity disabled:opacity-40"
+                          >
+                            {explainLoading
+                              ? <Loader2 className="w-3 h-3 animate-spin" />
+                              : <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16"><path fillRule="evenodd" d="M2 2.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5V3a.5.5 0 0 0-.5-.5zM3 3H2v1h1z"/><path d="M5 3.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5M5.5 7a.5.5 0 0 0 0 1h9a.5.5 0 0 0 0-1zm0 4a.5.5 0 0 0 0 1h9a.5.5 0 0 0 0-1z"/><path fillRule="evenodd" d="M1.5 7a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5H2a.5.5 0 0 1-.5-.5zM2 7h1v1H2zm0 3.5a.5.5 0 0 0-.5.5v1a.5.5 0 0 0 .5.5h1a.5.5 0 0 0 .5-.5v-1a.5.5 0 0 0-.5-.5zm1 .5H2v1h1z"/></svg>
+                            }
+                            {explainLoading ? 'Regenerating...' : 'Regenerate'}
+                          </button>
+                        </div>
+
+                        <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 relative min-h-[60px]">
+                          {explainLoading ? (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                              <span>Generating {explainDifficulty} explanation...</span>
+                            </div>
+                          ) : (
+                            <AnimatePresence mode="wait">
+                              <motion.p
+                                key={customExplanation || 'default'}
+                                initial={{ opacity: 0, y: 4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -4 }}
+                                transition={{ duration: 0.25 }}
+                                className="text-sm leading-relaxed text-foreground/90 whitespace-pre-line"
+                              >
+                                {customExplanation || result.explanation || 'No explanation available.'}
+                              </motion.p>
+                            </AnimatePresence>
+                          )}
                         </div>
 
                         {/* Student mode extras */}
