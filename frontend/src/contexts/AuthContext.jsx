@@ -10,6 +10,32 @@ import i18n from "@/i18n/index.js";
 
 const AuthContext = createContext();
 
+// Clear all user-specific localStorage keys (call before loading a new user)
+const clearUserData = () => {
+  // Remove all keys that are scoped to any user
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (
+      key.startsWith('devinspect-gamification-') ||
+      key.startsWith('devinspect-streak-') ||
+      key.startsWith('devinspect-history-') ||
+      key.startsWith('devinspect-avatar-') ||
+      key.startsWith('devinspect-rules-') ||
+      key.startsWith('devinspect-preferences-')
+    ) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach(k => localStorage.removeItem(k));
+  // Legacy unscoped keys
+  localStorage.removeItem('devinspect-gamification');
+  localStorage.removeItem('devinspect-streak');
+  localStorage.removeItem('devinspect-history');
+  localStorage.removeItem('devinspect-preferences');
+  localStorage.removeItem('devinspect-rules');
+};
+
 const loadStoredUser = () => {
   try {
     const raw = localStorage.getItem("devinspect-user");
@@ -83,7 +109,9 @@ export const AuthProvider = ({ children }) => {
       currentMode: data.currentMode || 'developer',
     };
 
-    // SAVE TOKEN
+    // Clear previous user's data before saving new user
+    clearUserData();
+
     localStorage.setItem("devinspect-token", data.token);
     localStorage.setItem("devinspect-user", JSON.stringify(mappedUser));
     localStorage.setItem("devinspect-mode", mappedUser.currentMode);
@@ -91,7 +119,6 @@ export const AuthProvider = ({ children }) => {
     setCurrentUser(mappedUser);
     setCurrentMode(normalizeMode(mappedUser.currentMode));
 
-    // Apply saved language after login
     const savedLang = localStorage.getItem("devinspect-lang") || 'en';
     i18n.changeLanguage(savedLang);
 
@@ -107,20 +134,39 @@ export const AuthProvider = ({ children }) => {
 
     const data = await res.json();
 
-    if (!res.ok) {
-      throw new Error(data.message || "Signup failed");
-    }
+    if (!res.ok) throw new Error(data.message || "Signup failed");
+    if (!data.token) throw new Error("Token missing from register response");
 
-    return login(email, password);
+    const mappedUser = {
+      id:          data._id,
+      email:       data.email,
+      name:        data.name,
+      role:        data.role        || 'user',
+      currentMode: data.currentMode || 'developer',
+    };
+
+    // Clear any previous user's data before saving new user
+    clearUserData();
+
+    localStorage.setItem("devinspect-token", data.token);
+    localStorage.setItem("devinspect-user",  JSON.stringify(mappedUser));
+    localStorage.setItem("devinspect-mode",  mappedUser.currentMode);
+
+    setCurrentUser(mappedUser);
+    setCurrentMode(normalizeMode(mappedUser.currentMode));
+
+    return mappedUser;
   };
 
   const logout = () => {
     setCurrentUser(null);
     setCurrentMode(null);
+    // Clear auth keys
     localStorage.removeItem("devinspect-token");
     localStorage.removeItem("devinspect-user");
     localStorage.removeItem("devinspect-mode");
-    // Hard redirect — bypasses AnimatePresence blank-screen flash
+    // Clear ALL user-specific data so next login starts fresh
+    clearUserData();
     window.location.replace("/login");
   };
 
@@ -196,6 +242,28 @@ export const AuthProvider = ({ children }) => {
     return prefs;
   };
 
+  const requestPasswordReset = async (email) => {
+    const res = await fetch(`${API_ORIGIN}/api/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Failed to send reset email');
+    return data;
+  };
+
+  const resetPassword = async (token, password) => {
+    const res = await fetch(`${API_ORIGIN}/api/auth/reset-password/${token}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Failed to reset password');
+    return data;
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -212,6 +280,8 @@ export const AuthProvider = ({ children }) => {
         deleteAccountOnBackend,
         updateProfileOnBackend,
         updateUserPreferences,
+        requestPasswordReset,
+        resetPassword,
       }}
     >
       {children}

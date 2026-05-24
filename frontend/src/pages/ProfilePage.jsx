@@ -23,7 +23,8 @@ const ProfilePage = () => {
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [stats, setStats] = useState({ total: 0, avgScore: 100, topLang: '—' });
-  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || localStorage.getItem('devinspect-avatar') || '');
+  const avatarKey = `devinspect-avatar-${currentUser?.id || currentUser?._id || 'anonymous'}`;
+  const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || localStorage.getItem(avatarKey) || '');
 
   useEffect(() => {
     const fetchStats = async () => {

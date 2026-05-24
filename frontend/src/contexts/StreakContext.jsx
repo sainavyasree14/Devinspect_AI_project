@@ -1,80 +1,108 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
 const StreakContext = createContext();
 
 const BADGES = [
-  { id: 'first_review', label: 'First Review', icon: '🎯', xpRequired: 0 },
-  { id: 'streak_3', label: '3-Day Streak', icon: '🔥', xpRequired: 30 },
-  { id: 'streak_7', label: 'Week Warrior', icon: '⚡', xpRequired: 70 },
-  { id: 'xp_100', label: 'Century Club', icon: '💯', xpRequired: 100 },
-  { id: 'xp_500', label: 'Code Master', icon: '🏆', xpRequired: 500 },
+  { id: 'first_review', label: 'First Review', icon: '🎯' },
+  { id: 'streak_3',     label: '3-Day Streak', icon: '🔥' },
+  { id: 'streak_7',     label: 'Week Warrior', icon: '⚡' },
+  { id: 'xp_100',       label: 'Century Club', icon: '💯' },
+  { id: 'xp_500',       label: 'Code Master',  icon: '🏆' },
 ];
 
-export const StreakProvider = ({ children }) => {
-  const [streak, setStreak] = useState(0);
-  const [xp, setXp] = useState(0);
-  const [badges, setBadges] = useState([]);
-  const [lastReviewDate, setLastReviewDate] = useState(null);
+const getCurrentUserId = () => {
+  try {
+    const u = JSON.parse(localStorage.getItem('devinspect-user') || '{}');
+    return u.id || u._id || 'anonymous';
+  } catch { return 'anonymous'; }
+};
 
-  useEffect(() => {
-    const stored = localStorage.getItem('devinspect-streak');
-    if (stored) {
-      try {
-        const data = JSON.parse(stored);
-        setStreak(data.streak || 0);
-        setXp(data.xp || 0);
-        setBadges(data.badges || []);
-        setLastReviewDate(data.lastReviewDate || null);
-      } catch { /* ignore */ }
-    }
+const storageKey = (uid) => `devinspect-streak-${uid}`;
+
+const loadData = (uid) => {
+  try {
+    return JSON.parse(localStorage.getItem(storageKey(uid)) || '{}');
+  } catch { return {}; }
+};
+
+const EMPTY = { streak: 0, xp: 0, badges: [], lastReviewDate: null };
+
+export const StreakProvider = ({ children }) => {
+  const [data, setData] = useState(EMPTY);
+
+  const loadUser = useCallback(() => {
+    const uid = getCurrentUserId();
+    const d   = loadData(uid);
+    setData({
+      streak:         d.streak         ?? 0,
+      xp:             d.xp             ?? 0,
+      badges:         d.badges         ?? [],
+      lastReviewDate: d.lastReviewDate ?? null,
+    });
   }, []);
 
-  const save = (data) => {
-    localStorage.setItem('devinspect-streak', JSON.stringify(data));
-  };
+  // Load on mount
+  useEffect(() => { loadUser(); }, [loadUser]);
 
-  const recordReview = (score = 100) => {
-    const today = new Date().toDateString();
+  // Reload when another tab changes the user
+  useEffect(() => {
+    const handler = (e) => { if (e.key === 'devinspect-user') loadUser(); };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }, [loadUser]);
+
+  const persist = useCallback((next) => {
+    const uid = getCurrentUserId();
+    localStorage.setItem(storageKey(uid), JSON.stringify(next));
+    setData(next);
+  }, []);
+
+  const recordReview = useCallback((score = 100) => {
+    const today     = new Date().toDateString();
     const yesterday = new Date(Date.now() - 86400000).toDateString();
 
-    let newStreak = streak;
-    if (lastReviewDate === today) {
-      // Already reviewed today, just add XP
-    } else if (lastReviewDate === yesterday) {
-      newStreak = streak + 1;
-    } else {
-      newStreak = 1;
-    }
-
-    const xpGained = 10 + Math.floor(score / 10);
-    const newXp = xp + xpGained;
-
-    // Check new badges
-    const newBadges = [...badges];
-    BADGES.forEach(b => {
-      if (!newBadges.includes(b.id)) {
-        if (b.id === 'first_review' && newXp >= 10) newBadges.push(b.id);
-        if (b.id === 'streak_3' && newStreak >= 3) newBadges.push(b.id);
-        if (b.id === 'streak_7' && newStreak >= 7) newBadges.push(b.id);
-        if (b.id === 'xp_100' && newXp >= 100) newBadges.push(b.id);
-        if (b.id === 'xp_500' && newXp >= 500) newBadges.push(b.id);
+    setData(prev => {
+      let newStreak = prev.streak;
+      if (prev.lastReviewDate === today) {
+        // already reviewed today — only add XP
+      } else if (prev.lastReviewDate === yesterday) {
+        newStreak = prev.streak + 1;
+      } else {
+        newStreak = 1;
       }
+
+      const xpGained = 10 + Math.floor(score / 10);
+      const newXp    = prev.xp + xpGained;
+
+      const newBadges = [...prev.badges];
+      if (!newBadges.includes('first_review') && newXp >= 10)    newBadges.push('first_review');
+      if (!newBadges.includes('streak_3')     && newStreak >= 3) newBadges.push('streak_3');
+      if (!newBadges.includes('streak_7')     && newStreak >= 7) newBadges.push('streak_7');
+      if (!newBadges.includes('xp_100')       && newXp >= 100)   newBadges.push('xp_100');
+      if (!newBadges.includes('xp_500')       && newXp >= 500)   newBadges.push('xp_500');
+
+      const next = { streak: newStreak, xp: newXp, badges: newBadges, lastReviewDate: today };
+      const uid  = getCurrentUserId();
+      localStorage.setItem(storageKey(uid), JSON.stringify(next));
+      return next;
     });
+  }, []);
 
-    const updated = { streak: newStreak, xp: newXp, badges: newBadges, lastReviewDate: today };
-    setStreak(newStreak);
-    setXp(newXp);
-    setBadges(newBadges);
-    setLastReviewDate(today);
-    save(updated);
-
-    return { xpGained, newStreak, newBadges: newBadges.filter(b => !badges.includes(b)) };
-  };
-
-  const getEarnedBadges = () => BADGES.filter(b => badges.includes(b.id));
+  const getEarnedBadges = useCallback(
+    () => BADGES.filter(b => data.badges.includes(b.id)),
+    [data.badges]
+  );
 
   return (
-    <StreakContext.Provider value={{ streak, xp, badges, getEarnedBadges, recordReview, BADGES }}>
+    <StreakContext.Provider value={{
+      streak:         data.streak,
+      xp:             data.xp,
+      badges:         data.badges,
+      getEarnedBadges,
+      recordReview,
+      loadUser,
+      BADGES,
+    }}>
       {children}
     </StreakContext.Provider>
   );

@@ -1,6 +1,15 @@
 import { API_ORIGIN, ANALYSIS_URL } from './apiConfig';
 
-const STORAGE_KEY = "devinspect-history";
+// User-scoped cache key — prevents data leaking between accounts
+const getStorageKey = () => {
+  try {
+    const u = JSON.parse(localStorage.getItem('devinspect-user') || '{}');
+    const uid = u.id || u._id || 'anonymous';
+    return `devinspect-history-${uid}`;
+  } catch { return 'devinspect-history-anonymous'; }
+};
+// Keep legacy key name for backward compat reads only
+const STORAGE_KEY = getStorageKey;
 
 export const normalizeMode = (mode) => {
   const lower = String(mode || "developer").toLowerCase();
@@ -53,7 +62,7 @@ export const mapServerReview = (srv) => {
 
 export const getReviews = () => {
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
+    const data = localStorage.getItem(STORAGE_KEY());
     return data ? JSON.parse(data) : [];
   } catch (error) {
     console.error('Error reading local reviews:', error);
@@ -76,11 +85,18 @@ export const getReviewsFromServer = async () => {
     if (response.ok) {
       const data = await response.json();
       const mapped = data.map(mapServerReview);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
+      localStorage.setItem(STORAGE_KEY(), JSON.stringify(mapped));
       return mapped;
     }
-    
-    // If server request fails, fall back to local storage
+
+    // If 401, clear stale token so user gets redirected to login
+    if (response.status === 401) {
+      localStorage.removeItem('devinspect-token');
+      localStorage.removeItem('devinspect-user');
+      window.location.replace('/login');
+      return [];
+    }
+
     console.warn('Failed to fetch from server, using local storage');
   } catch (err) {
     console.error("Failed to fetch reviews from server:", err.message);
@@ -114,7 +130,7 @@ export const saveReview = (review) => {
     };
 
     existing.unshift(newReview);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
+    localStorage.setItem(STORAGE_KEY(), JSON.stringify(existing));
     return newReview;
   } catch (error) {
     console.error('Error saving review locally:', error);
@@ -185,7 +201,7 @@ export const deleteReview = (id) => {
   try {
     const existing = getReviews();
     const filtered = existing.filter((item) => String(item.id) !== String(id));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+    localStorage.setItem(STORAGE_KEY(), JSON.stringify(filtered));
     return true;
   } catch (error) {
     console.error('Error deleting review locally:', error);
@@ -212,7 +228,7 @@ export const deleteReviewFromServer = async (id) => {
 
 export const clearAllReviews = () => {
   try {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_KEY());
     return true;
   } catch (error) {
     console.error('Error clearing local reviews:', error);

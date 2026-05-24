@@ -3,26 +3,39 @@ import { sendWelcomeEmail } from '../services/emailService.js';
 
 export const oauthCallback = async (req, res) => {
   try {
+    console.log('[oauthCallback] req.user:', req.user?.email, '| _id:', req.user?._id);
+
     if (!req.user) {
+      console.error('[oauthCallback] No req.user — redirecting to error');
       return res.redirect(
         `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=oauth_failed`
       );
     }
 
-    const { _id, email, name, role, currentMode, avatar, _isNewOAuthUser } = req.user;
+    const user = req.user;
+    const token = generateToken(user._id, {
+      email:       user.email,
+      name:        user.name,
+      role:        user.role        || 'user',
+      currentMode: user.currentMode || 'developer',
+      avatar:      user.avatar      || '',
+    });
 
-    const token = generateToken(_id, { email, name, role, currentMode, avatar });
+    console.log('[oauthCallback] JWT generated — redirecting to /oauth-callback');
+
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
-    // Send welcome email only on first-ever OAuth login (non-blocking)
-    if (_isNewOAuthUser) {
-      sendWelcomeEmail(email, name).catch(() => {});
+    // Non-blocking welcome email for new users
+    if (user._isNewOAuthUser) {
+      sendWelcomeEmail(user.email, user.name).catch((e) =>
+        console.warn('[oauthCallback] Welcome email failed (non-fatal):', e.message)
+      );
     }
 
-    res.redirect(`${frontendUrl}/oauth-callback?token=${token}`);
+    return res.redirect(`${frontendUrl}/oauth-callback?token=${token}`);
   } catch (err) {
-    console.error('OAuth callback error:', err);
-    res.redirect(
+    console.error('[oauthCallback] Unexpected error:', err);
+    return res.redirect(
       `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login?error=oauth_failed`
     );
   }

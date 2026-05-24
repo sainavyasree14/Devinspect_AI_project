@@ -39,9 +39,13 @@ export const ANALYSIS_URL = `${API_ORIGIN}/api/analysis`;
 export const CHAT_URL = `${API_ORIGIN}/api/chat/followup`;
 
 // Interview Endpoints
-export const INTERVIEW_QUESTION_URL = `${API_ORIGIN}/api/interview/question`;
-export const INTERVIEW_SESSION_URL  = `${API_ORIGIN}/api/interview/session`;
-export const INTERVIEW_EVALUATE_URL = `${API_ORIGIN}/api/interview/evaluate`;
+export const INTERVIEW_QUESTION_URL      = `${API_ORIGIN}/api/interview/question`;
+export const INTERVIEW_SESSION_URL       = `${API_ORIGIN}/api/interview/session`;
+export const INTERVIEW_EVALUATE_URL      = `${API_ORIGIN}/api/interview/evaluate`;
+export const INTERVIEW_START_URL         = `${API_ORIGIN}/api/interview/start`;
+export const INTERVIEW_EVAL_ANSWER_URL   = `${API_ORIGIN}/api/interview/evaluate-answer`;
+export const INTERVIEW_FINISH_URL        = `${API_ORIGIN}/api/interview/finish`;
+export const INTERVIEW_HISTORY_URL       = `${API_ORIGIN}/api/interview/history`;
 
 // Upload Endpoint
 export const UPLOAD_URL = `${API_ORIGIN}/api/upload`;

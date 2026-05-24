@@ -74,7 +74,7 @@ const SignupPage = () => {
     try {
       await signup(formData.email, formData.password, formData.name);
       toast.success('Account created successfully!');
-      navigate('/mode-selection');
+      navigate('/welcome');
     } catch (err) {
       setError(err.message || 'Signup failed. Please try again.');
     } finally {

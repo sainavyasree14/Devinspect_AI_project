@@ -122,9 +122,10 @@ export const getUserSettings = async (req, res) => {
 // ── POST /api/user/dev-token ──────────────────────────────────────────────────
 export const generateDevToken = async (req, res) => {
   try {
-    const devToken = `dvi_${crypto.randomBytes(24).toString('hex')}`;
-    await User.findByIdAndUpdate(req.user._id, { $set: { apiKey: devToken } });
-    res.json({ devToken });
+    const devToken = `dvi_${crypto.randomBytes(32).toString('hex')}`;
+    const devTokenCreatedAt = new Date();
+    await User.findByIdAndUpdate(req.user._id, { $set: { devToken, devTokenCreatedAt } });
+    res.json({ devToken, createdAt: devTokenCreatedAt });
   } catch {
     res.status(500).json({ message: 'Server error' });
   }

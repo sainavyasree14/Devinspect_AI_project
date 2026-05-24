@@ -21,6 +21,7 @@ STRICT RULES:
 - mistakes array must have at least 1 entry per real issue found
 - steps must walk through the code line by line in simple language
 - tips must give 3+ actionable learning tips
+- errors array MUST list every real bug or syntax error found — do NOT leave it empty if the code has issues
 
 Return this exact JSON shape:
 {
@@ -36,7 +37,16 @@ Return this exact JSON shape:
   "steps": ["<step 1>", "<step 2>", "<step 3>"],
   "tips": ["<tip 1>", "<tip 2>", "<tip 3>"],
   "questions": [],
-  "errors": [],
+  "errors": [
+    {
+      "line": <line number or 0>,
+      "category": "<syntax | logic | style>",
+      "severity": "<low | medium | high | critical>",
+      "message": "<what is wrong>",
+      "why": "<why this is a problem>",
+      "fix": "<how to fix it>"
+    }
+  ],
   "suggestions": [],
   "modeOutput": "<a friendly 3-4 sentence summary for a student>"
 }
@@ -116,13 +126,16 @@ STRICT RULES:
 - Return ONLY a single valid JSON object
 - No markdown, no code fences, no text before or after JSON
 - explanation must be a thorough senior-level review: minimum 10 sentences covering architecture, bugs, security, performance, and maintainability
-- errors array must list every real issue found with line number, category, severity, message, why it is wrong, and how to fix it
+- errors array MUST list EVERY real issue found — syntax errors, logic bugs, security holes, bad practices, missing error handling
+- If the code has ANY bugs, wrong logic, syntax errors, or bad practices — you MUST include them in errors. NEVER return an empty errors array for broken or incorrect code
+- If the code is truly perfect with zero issues, only then return errors as []
+- Each error must have line number, category, severity, message, why it is wrong, and how to fix it
 - suggestions must give 3+ concrete improvement recommendations
-- correctedCode must be the fully refactored version
+- correctedCode must be the fully refactored version with all bugs fixed
 
 Return this exact JSON shape:
 {
-  "correctedCode": "<full refactored code>",
+  "correctedCode": "<full refactored code with all bugs fixed>",
   "explanation": "<thorough senior-level review, minimum 10 sentences>",
   "errors": [
     {

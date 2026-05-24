@@ -1,11 +1,11 @@
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import mongoose from "mongoose";
 
 export const protect = async (req, res, next) => {
   try {
     let token = null;
 
-    // Get token from header
     if (
       req.headers.authorization &&
       req.headers.authorization.startsWith("Bearer ")
@@ -14,26 +14,32 @@ export const protect = async (req, res, next) => {
     }
 
     if (!token) {
-      return res.status(401).json({
-        message: "Not authorized - no token",
-      });
+      return res.status(401).json({ message: "Not authorized - no token" });
     }
 
     let decoded;
     try {
       decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (err) {
-      return res.status(401).json({
-        message: "Token expired or invalid",
-      });
+      return res.status(401).json({ message: "Token expired or invalid" });
     }
 
-    const user = await User.findById(decoded.id).select("-password");
+    // Support both decoded.id and decoded._id
+    const userId = decoded.id || decoded._id;
+    if (!userId) {
+      return res.status(401).json({ message: "Invalid token payload" });
+    }
+
+    // Validate it's a proper ObjectId before querying
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(401).json({ message: "Invalid token payload" });
+    }
+
+    const user = await User.findById(userId).select("-password");
 
     if (!user) {
-      return res.status(401).json({
-        message: "User not found",
-      });
+      // Token valid but user deleted — clear hint for frontend
+      return res.status(401).json({ message: "User not found", code: "USER_DELETED" });
     }
 
     req.user = user;
@@ -41,8 +47,6 @@ export const protect = async (req, res, next) => {
 
   } catch (error) {
     console.error("Auth error:", error);
-    return res.status(401).json({
-      message: "Authentication failed",
-    });
+    return res.status(401).json({ message: "Authentication failed" });
   }
 };

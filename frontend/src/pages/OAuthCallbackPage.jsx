@@ -2,6 +2,31 @@ import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
+// Clear all user-scoped localStorage keys before writing a new user session
+const clearAllUserData = () => {
+  const keysToRemove = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (
+      key.startsWith('devinspect-gamification-') ||
+      key.startsWith('devinspect-streak-') ||
+      key.startsWith('devinspect-history-') ||
+      key.startsWith('devinspect-avatar-') ||
+      key.startsWith('devinspect-rules-') ||
+      key.startsWith('devinspect-preferences-')
+    ) {
+      keysToRemove.push(key);
+    }
+  }
+  keysToRemove.forEach(k => localStorage.removeItem(k));
+  // Legacy unscoped keys
+  localStorage.removeItem('devinspect-gamification');
+  localStorage.removeItem('devinspect-streak');
+  localStorage.removeItem('devinspect-history');
+  localStorage.removeItem('devinspect-preferences');
+  localStorage.removeItem('devinspect-rules');
+};
+
 const OAuthCallbackPage = () => {
   const [searchParams] = useSearchParams();
 
@@ -15,7 +40,6 @@ const OAuthCallbackPage = () => {
     }
 
     try {
-      // Decode JWT payload — backend already verified signature
       const payload = JSON.parse(atob(token.split('.')[1]));
 
       const mappedUser = {
@@ -27,17 +51,20 @@ const OAuthCallbackPage = () => {
         avatar:      payload.avatar      || '',
       };
 
+      // ⚠️ Clear previous user's data BEFORE writing new user
+      clearAllUserData();
+
       localStorage.setItem('devinspect-token', token);
       localStorage.setItem('devinspect-user',  JSON.stringify(mappedUser));
       localStorage.setItem('devinspect-mode',  mappedUser.currentMode);
     } catch {
-      // Decode failed — store token only; AuthContext will handle the rest
+      // Decode failed — still clear old data and store token
+      clearAllUserData();
       localStorage.setItem('devinspect-token', token);
     }
 
-    // Full reload so AuthContext re-initializes from localStorage
-    window.location.replace('/dashboard');
-  }, []);
+    window.location.replace('/welcome');
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-animated">

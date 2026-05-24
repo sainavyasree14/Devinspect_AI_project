@@ -2,8 +2,11 @@ import { useCallback } from 'react';
 import confetti from 'canvas-confetti';
 
 export const useConfetti = () => {
-  const celebrate = useCallback((score) => {
-    if (score < 90) return;
+  // score: AI score 0-100, errors: array of found issues, degraded: fallback mode flag
+  const celebrate = useCallback((score, errors = [], degraded = false) => {
+    // Only fire confetti when code is genuinely clean:
+    // score >= 90 AND no errors found AND not in degraded/fallback mode
+    if (score < 90 || errors.length > 0 || degraded) return;
     confetti({
       particleCount: 120,
       spread: 80,

@@ -1,52 +1,36 @@
-import 'dotenv/config';
+// dotenv is loaded inside app.js → env.js (must stay there, not here)
 import mongoose from 'mongoose';
 import app from './app.js';
 
-console.log('🔍 Environment Check:');
-console.log(`   PORT:         ${process.env.PORT || '5000'}`);
-console.log(`   NODE_ENV:     ${process.env.NODE_ENV || 'not set'}`);
-console.log(`   MONGO_URI:    ${process.env.MONGO_URI ? 'configured' : 'NOT CONFIGURED'}`);
-console.log(`   JWT_SECRET:   ${process.env.JWT_SECRET ? 'configured' : 'NOT CONFIGURED'}`);
-console.log(`   GROQ_API_KEY: ${process.env.GROQ_API_KEY ? 'configured' : 'not set — fallback mode'}`);
+const PORT = process.env.PORT || 5000;
 
 const connectDB = async () => {
   const conn = await mongoose.connect(process.env.MONGO_URI);
   console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
 };
 
-process.on('SIGTERM', async () => {
-  await mongoose.connection.close();
-  process.exit(0);
-});
-
-process.on('SIGINT', async () => {
-  await mongoose.connection.close();
-  process.exit(0);
-});
-
-const PORT = process.env.PORT || 5000;
+process.on('SIGTERM', async () => { await mongoose.connection.close(); process.exit(0); });
+process.on('SIGINT',  async () => { await mongoose.connection.close(); process.exit(0); });
 
 const startServer = async () => {
   try {
     await connectDB();
-  } catch (error) {
-    console.error(`❌ MongoDB Connection Error: ${error.message}`);
+  } catch (err) {
+    console.error('❌ MongoDB Connection Error:', err.message);
     process.exit(1);
   }
 
   const server = app.listen(PORT, () => {
-    console.log(`🚀 DevInspectAI API running on port ${PORT}`);
-    console.log(`📍 Environment: ${process.env.NODE_ENV}`);
+    console.log(`🚀 DevInspectAI API running on http://localhost:${PORT}`);
     console.log(`🔗 Health: http://localhost:${PORT}/api/health`);
-    console.log(`🤖 AI: ${process.env.GROQ_API_KEY ? 'Groq ready' : 'Fallback mode'}`);
+    console.log(`🌐 Frontend: ${process.env.FRONTEND_URL}`);
+    console.log(`🔑 Google OAuth: ${process.env.GOOGLE_CLIENT_ID ? 'configured' : 'NOT configured'}`);
+    console.log(`🔑 GitHub OAuth: ${process.env.GITHUB_CLIENT_ID ? 'configured' : 'NOT configured'}`);
   });
 
-  server.on('error', (error) => {
-    if (error.code === 'EADDRINUSE') {
-      console.error(`❌ Port ${PORT} already in use`);
-    } else {
-      console.error(`❌ Server error:`, error);
-    }
+  server.on('error', (err) => {
+    if (err.code === 'EADDRINUSE') console.error(`❌ Port ${PORT} already in use`);
+    else console.error('❌ Server error:', err);
     process.exit(1);
   });
 };

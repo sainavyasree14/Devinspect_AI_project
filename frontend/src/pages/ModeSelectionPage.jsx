@@ -70,23 +70,11 @@ const ModeSelectionPage = () => {
 
     setIsLoading(true);
     setError(null);
-    
-    // (5) Add console logging to debug the save process
-    console.log('Initiating mode save...', {
-      userId: currentUser?.id,
-      selectedMode: selectedMode
-    });
 
     try {
       // Calls context method which saves to user_modes and users collections
       await switchMode(selectedMode);
-      
-      console.log('Mode saved successfully to backend.');
-      
-      // Briefly show success before navigation
       toast.success('Workspace mode saved successfully!', { duration: 2000 });
-      
-      // (7) Ensure navigation happens AFTER database save completes
       navigate('/analyzer');
     } catch (err) {
       // (3) Add error handling with user-friendly error messages

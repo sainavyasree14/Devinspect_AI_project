@@ -20,7 +20,7 @@ import { checkAiHealth } from "@/lib/aiService";
 import VSCodeExtensionPanel from "@/components/VSCodeExtensionPanel";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n/index.js";
-import { saveCustomRules, savePreferences, loadUserSettings } from "@/lib/settingsService";
+import { saveCustomRules, savePreferences, loadUserSettings, getRulesKey, getPrefsKey } from "@/lib/settingsService";
 
 const SettingsPage = () => {
   const { currentUser, updateProfileOnBackend, updateUserPreferences } = useAuth();
@@ -77,9 +77,9 @@ const SettingsPage = () => {
               typeof r === 'string' ? { text: r, category: 'general', enabled: true } : r
             );
             setRules(normalized);
-            localStorage.setItem('devinspect-rules', JSON.stringify(normalized));
+            localStorage.setItem(getRulesKey(), JSON.stringify(normalized));
           } else {
-            const storedRules = localStorage.getItem('devinspect-rules');
+            const storedRules = localStorage.getItem(getRulesKey());
             if (storedRules) {
               try { setRules(JSON.parse(storedRules)); } catch { setRules([]); }
             } else {
@@ -96,8 +96,7 @@ const SettingsPage = () => {
           }
         })
         .catch(() => {
-          // Fallback to localStorage
-          const storedRules = localStorage.getItem('devinspect-rules');
+          const storedRules = localStorage.getItem(getRulesKey());
           if (storedRules) {
             try { setRules(JSON.parse(storedRules)); } catch { setRules([]); }
           }
@@ -130,13 +129,11 @@ const SettingsPage = () => {
   }, []);
 
   useEffect(() => {
-    const stored = localStorage.getItem("devinspect-preferences");
+    const stored = localStorage.getItem(getPrefsKey());
     if (stored) {
       try {
         setPrefs((prev) => ({ ...prev, ...JSON.parse(stored) }));
-      } catch {
-        /* ignore */
-      }
+      } catch { /* ignore */ }
     }
   }, []);
 
@@ -187,13 +184,13 @@ const SettingsPage = () => {
 
       // 2. Save custom rules to backend + localStorage
       await saveCustomRules(rules).catch(() => {
-        localStorage.setItem('devinspect-rules', JSON.stringify(rules));
+        localStorage.setItem(getRulesKey(), JSON.stringify(rules));
       });
 
       // 3. Save preferences to backend + localStorage
       const prefsToSave = { ...prefs, themePreference: prefs.themePreference };
       await savePreferences(prefsToSave).catch(() => {
-        localStorage.setItem('devinspect-preferences', JSON.stringify(prefsToSave));
+        localStorage.setItem(getPrefsKey(), JSON.stringify(prefsToSave));
       });
 
       // 4. Apply theme
@@ -246,7 +243,7 @@ const SettingsPage = () => {
     const rule = { text: newRule.trim(), category: newRuleCategory, enabled: true };
     const updated = [...rules, rule];
     setRules(updated);
-    localStorage.setItem('devinspect-rules', JSON.stringify(updated));
+    localStorage.setItem(getRulesKey(), JSON.stringify(updated));
     setNewRule("");
     toast.success('Rule added!');
   };
@@ -254,13 +251,13 @@ const SettingsPage = () => {
   const handleRemoveRule = (index) => {
     const updated = rules.filter((_, i) => i !== index);
     setRules(updated);
-    localStorage.setItem('devinspect-rules', JSON.stringify(updated));
+    localStorage.setItem(getRulesKey(), JSON.stringify(updated));
   };
 
   const handleToggleRule = (index) => {
     const updated = rules.map((r, i) => i === index ? { ...r, enabled: !r.enabled } : r);
     setRules(updated);
-    localStorage.setItem('devinspect-rules', JSON.stringify(updated));
+    localStorage.setItem(getRulesKey(), JSON.stringify(updated));
   };
 
   const handleEditRule = (index) => {
@@ -272,7 +269,7 @@ const SettingsPage = () => {
     if (!editingRuleText.trim()) return;
     const updated = rules.map((r, i) => i === index ? { ...r, text: editingRuleText.trim() } : r);
     setRules(updated);
-    localStorage.setItem('devinspect-rules', JSON.stringify(updated));
+    localStorage.setItem(getRulesKey(), JSON.stringify(updated));
     setEditingRuleIdx(null);
     setEditingRuleText('');
   };

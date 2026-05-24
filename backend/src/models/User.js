@@ -32,6 +32,8 @@ const userSchema = new mongoose.Schema({
   customRules: { type: [customRuleSchema], default: [] },
   preferences: { type: preferencesSchema, default: () => ({}) },
   apiKey:      { type: String, default: '' },
+  devToken:    { type: String, default: null },
+  devTokenCreatedAt: { type: Date, default: null },
   avatar:      { type: String, default: '' },
   githubUser:  { type: String, default: '' },
   githubToken: { type: String, default: '' },
@@ -39,12 +41,13 @@ const userSchema = new mongoose.Schema({
   isNewUser:   { type: Boolean, default: true },
   lastLogin:   { type: Date, default: null },
   activityLog: { type: [activityLogSchema], default: [] },
+  resetPasswordToken:   { type: String, default: null },
+  resetPasswordExpires: { type: Date,   default: null },
 }, { timestamps: true });
 
-userSchema.pre('save', async function (next) {
-  if (!this.isModified('password') || this.$locals.skipPasswordHash) return next();
+userSchema.pre('save', async function () {
+  if (!this.isModified('password') || this.$locals.skipPasswordHash) return;
   this.password = await bcrypt.hash(this.password, 10);
-  next();
 });
 
 userSchema.methods.matchPassword = async function (enteredPassword) {

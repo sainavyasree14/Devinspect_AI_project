@@ -46,6 +46,7 @@ import MiniGame from '../components/MiniGame.jsx';
 import { useConfetti } from '../hooks/useConfetti.js';
 import { useStreak } from '../contexts/StreakContext.jsx';
 import { useGamification } from '../contexts/GamificationContext.jsx';
+import { useMascot } from '../contexts/MascotContext.jsx';
 
 import {
   saveReviewToServer,
@@ -69,6 +70,7 @@ const AnalyzerPage = () => {
   const { celebrate } = useConfetti();
   const { recordReview } = useStreak();
   const { recordAnalysis } = useGamification();
+  const { triggerMascot } = useMascot();
 
   // Multi-file state
   const [files, setFiles] = useState([]);
@@ -259,6 +261,7 @@ const AnalyzerPage = () => {
     setLoading(true);
     setResult(null);
     setChatMessages([]);
+    triggerMascot('analyzing');
 
     try {
       const mode = normalizeMode(analysisMode);
@@ -287,6 +290,13 @@ const AnalyzerPage = () => {
 
       if (!response.ok) {
         const errData = await response.json();
+        // Stale token — clear and redirect to login
+        if (response.status === 401) {
+          localStorage.removeItem('devinspect-token');
+          localStorage.removeItem('devinspect-user');
+          window.location.replace('/login');
+          return;
+        }
         throw new Error(errData.message || 'Analysis failed.');
       }
 
@@ -326,8 +336,8 @@ const AnalyzerPage = () => {
       setResult(payload);
       setCurrentAnalysisId(payload.id);
       
-      // Confetti for high scores
-      celebrate(payload.aiScore);
+      // Confetti only for genuinely clean code
+      celebrate(payload.aiScore, payload.errors, payload.degraded);
       
       // Record streak
       recordReview(payload.aiScore);
@@ -818,7 +828,15 @@ ${result.correctedCode}
                         <div className="space-y-2.5">
                           <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Findings ({result.errors.length})</h4>
                           {result.errors.length === 0 ? (
-                            <div className="text-xs text-muted-foreground p-3 bg-green-500/10 rounded-xl border border-green-500/20 flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500" /> No severe issues found.</div>
+                            result.degraded ? (
+                              <div className="text-xs text-muted-foreground p-3 bg-orange-500/10 rounded-xl border border-orange-500/20 flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4 text-orange-500" /> AI service unavailable. Configure GROQ_API_KEY for real analysis.
+                              </div>
+                            ) : (
+                              <div className="text-xs text-muted-foreground p-3 bg-green-500/10 rounded-xl border border-green-500/20 flex items-center gap-2">
+                                <CheckCircle className="w-4 h-4 text-green-500" /> No issues found. Code looks clean! ✅
+                              </div>
+                            )
                           ) : (
                             result.errors.map((e, idx) => {
                               const sev = String(e.severity || '').toLowerCase();
@@ -832,8 +850,8 @@ ${result.correctedCode}
                                     <span className="text-[10px] text-muted-foreground">{e.category} · Line {e.line || 'N/A'}</span>
                                   </div>
                                   <p className="text-foreground leading-relaxed">{e.message}</p>
-                                  {e.why  && <p className="text-muted-foreground mt-1 leading-relaxed">Why: {e.why}</p>}
-                                  {e.fix  && <p className="text-green-500 mt-1 leading-relaxed">Fix: {e.fix}</p>}
+                                  {e.why && <p className="text-muted-foreground mt-1 leading-relaxed">Why: {e.why}</p>}
+                                  {e.fix && <p className="text-green-500 mt-1 leading-relaxed">Fix: {e.fix}</p>}
                                 </div>
                               );
                             })

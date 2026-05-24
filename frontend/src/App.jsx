@@ -1,4 +1,4 @@
-import React, { useState, lazy, Suspense } from 'react';
+import React, { useState, lazy, Suspense, useEffect } from 'react';
 import { Route, Routes, BrowserRouter as Router, Navigate, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AuthProvider } from '@/contexts/AuthContext.jsx';
@@ -15,6 +15,9 @@ import Sidebar from '@/components/Sidebar.jsx';
 import LoginPage from '@/pages/LoginPage.jsx';
 import SignupPage from '@/pages/SignupPage.jsx';
 import OAuthCallbackPage from '@/pages/OAuthCallbackPage.jsx';
+import PasswordResetPage from '@/pages/PasswordResetPage.jsx';
+import ResetPasswordPage from '@/pages/ResetPasswordPage.jsx';
+import WelcomePage from '@/pages/WelcomePage.jsx';
 
 // Lazy-loaded (route splitting)
 const HomePage = lazy(() => import('@/pages/HomePage.jsx'));
@@ -28,6 +31,7 @@ const ProfilePage = lazy(() => import('@/pages/ProfilePage.jsx'));
 const AdminPage = lazy(() => import('@/pages/AdminPage.jsx'));
 const LeaderboardPage = lazy(() => import('@/pages/LeaderboardPage.jsx'));
 const InterviewPage = lazy(() => import('@/pages/InterviewPage.jsx'));
+const CodeBreakPage = lazy(() => import('@/pages/CodeBreakPage.jsx'));
 
 // ScrollToTop Component
 const ScrollToTop = () => {
@@ -78,6 +82,9 @@ const AnimatedRoutes = () => {
         <Route path="/login" element={<AnimatedRoute><LoginPage /></AnimatedRoute>} />
         <Route path="/signup" element={<AnimatedRoute><SignupPage /></AnimatedRoute>} />
         <Route path="/oauth-callback" element={<OAuthCallbackPage />} />
+        <Route path="/password-reset" element={<AnimatedRoute><PasswordResetPage /></AnimatedRoute>} />
+        <Route path="/reset-password/:token" element={<AnimatedRoute><ResetPasswordPage /></AnimatedRoute>} />
+        <Route path="/welcome" element={<ProtectedRoute><AnimatedRoute><WelcomePage /></AnimatedRoute></ProtectedRoute>} />
         
         {/* Protected Routes */}
         <Route path="/" element={<ProtectedRoute><AppLayout><AnimatedRoute><HomePage /></AnimatedRoute></AppLayout></ProtectedRoute>} />
@@ -91,6 +98,7 @@ const AnimatedRoutes = () => {
         <Route path="/admin" element={<ProtectedRoute><AppLayout><AnimatedRoute><AdminPage /></AnimatedRoute></AppLayout></ProtectedRoute>} />
         <Route path="/interview" element={<ProtectedRoute><AppLayout><AnimatedRoute><InterviewPage /></AnimatedRoute></AppLayout></ProtectedRoute>} />
         <Route path="/leaderboard" element={<ProtectedRoute><AppLayout><AnimatedRoute><LeaderboardPage /></AnimatedRoute></AppLayout></ProtectedRoute>} />
+        <Route path="/code-break" element={<ProtectedRoute><AppLayout><AnimatedRoute><CodeBreakPage /></AnimatedRoute></AppLayout></ProtectedRoute>} />
         
         {/* 404 Fallback */}
         <Route path="*" element={

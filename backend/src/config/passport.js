@@ -4,134 +4,142 @@ import { Strategy as GitHubStrategy } from 'passport-github2';
 import bcrypt from 'bcryptjs';
 import User from '../models/User.js';
 
-passport.serializeUser((user, done) => done(null, user._id));
+// ── Serialize / Deserialize ───────────────────────────────────────────────────
+passport.serializeUser((user, done) => {
+  console.log('[Passport] serializeUser — id:', user._id);
+  done(null, user._id.toString());
+});
 
 passport.deserializeUser(async (id, done) => {
   try {
     const user = await User.findById(id);
+    console.log('[Passport] deserializeUser — found:', user?.email);
     done(null, user);
   } catch (err) {
+    console.error('[Passport] deserializeUser error:', err.message);
     done(err, null);
   }
 });
 
-// Lazily initialized sentinel hash
-let _oauthPasswordHash = null;
-const getOAuthPasswordHash = async () => {
-  if (!_oauthPasswordHash) {
-    _oauthPasswordHash = await bcrypt.hash('__oauth_placeholder__', 10);
-  }
-  return _oauthPasswordHash;
+// ── OAuth user upsert ─────────────────────────────────────────────────────────
+let _oauthHash = null;
+const getOAuthHash = async () => {
+  if (!_oauthHash) _oauthHash = await bcrypt.hash('__oauth__', 10);
+  return _oauthHash;
 };
 
 const findOrCreateOAuthUser = async ({ email, name, avatar = '', githubUser = '', isGoogleUser = false }) => {
+  console.log('[OAuth] findOrCreate — email:', email);
+
   let user = await User.findOne({ email });
   let isNew = false;
+
   if (!user) {
-    const hash = await getOAuthPasswordHash();
+    console.log('[OAuth] Creating new user:', email);
+    const hash = await getOAuthHash();
     user = new User({ name, email, password: hash, avatar, githubUser, isGoogleUser, isNewUser: true });
     user.$locals.skipPasswordHash = true;
     await user.save();
     isNew = true;
+    console.log('[OAuth] New user saved — id:', user._id);
   } else {
+    console.log('[OAuth] Existing user found — id:', user._id);
     const updates = {};
-    if (user.name !== name) updates.name = name;
+    if (name && user.name !== name) updates.name = name;
     if (avatar && user.avatar !== avatar) updates.avatar = avatar;
     if (githubUser && user.githubUser !== githubUser) updates.githubUser = githubUser;
+    if (isGoogleUser && !user.isGoogleUser) updates.isGoogleUser = true;
     if (Object.keys(updates).length > 0) {
       Object.assign(user, updates);
       user.$locals.skipPasswordHash = true;
       await user.save();
+      console.log('[OAuth] User updated:', updates);
     }
   }
+
   user._isNewOAuthUser = isNew;
   return user;
 };
 
-// ── Google ────────────────────────────────────────────────────────────────────
-// Only register strategy if credentials are properly configured
-const googleClientId = process.env.GOOGLE_CLIENT_ID;
-const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+// ── Google Strategy ───────────────────────────────────────────────────────────
+// Strategy is registered lazily inside a function so process.env is read at
+// call time (after dotenv has loaded), not at module parse time.
+const registerGoogleStrategy = () => {
+  const clientID     = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const callbackURL  = process.env.GOOGLE_CALLBACK_URL ||
+                       `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/auth/google/callback`;
 
-if (
-  googleClientId &&
-  googleClientSecret &&
-  googleClientId !== 'your_google_client_id_here' &&
-  googleClientSecret !== 'your_google_client_secret_here'
-) {
-  passport.use(
-    new GoogleStrategy(
-      {
-        clientID:     googleClientId,
-        clientSecret: googleClientSecret,
-        callbackURL:  process.env.GOOGLE_CALLBACK_URL ||
-                      `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/auth/google/callback`,
-      },
-      async (_accessToken, _refreshToken, profile, done) => {
-        try {
-          const email = profile.emails?.[0]?.value?.toLowerCase().trim();
-          if (!email) return done(new Error('No email returned from Google'), null);
+  if (!clientID || !clientSecret) {
+    console.warn('[Passport] Google strategy NOT registered — missing credentials');
+    return;
+  }
 
-          const name   = profile.displayName || email.split('@')[0];
-          const avatar = profile.photos?.[0]?.value || '';
-          const user   = await findOrCreateOAuthUser({ email, name, avatar, isGoogleUser: true });
+  console.log('[Passport] Registering Google strategy — callbackURL:', callbackURL);
 
-          return done(null, user);
-        } catch (err) {
-          return done(err, null);
+  passport.use('google', new GoogleStrategy(
+    { clientID, clientSecret, callbackURL },
+    async (_accessToken, _refreshToken, profile, done) => {
+      try {
+        console.log('[Google Strategy] Profile received — id:', profile.id, '| emails:', profile.emails);
+        const email = profile.emails?.[0]?.value?.toLowerCase().trim();
+        if (!email) {
+          console.error('[Google Strategy] No email in profile');
+          return done(new Error('No email returned from Google'), null);
         }
+        const name   = profile.displayName || email.split('@')[0];
+        const avatar = profile.photos?.[0]?.value || '';
+        const user   = await findOrCreateOAuthUser({ email, name, avatar, isGoogleUser: true });
+        console.log('[Google Strategy] Done — user:', user.email);
+        return done(null, user);
+      } catch (err) {
+        console.error('[Google Strategy] Error:', err.message);
+        return done(err, null);
       }
-    )
-  );
-  console.log('[Passport] Google OAuth strategy registered');
-} else {
-  console.warn('[Passport] Google OAuth not configured — set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env');
-}
+    }
+  ));
+  console.log('[Passport] Google strategy registered ✓');
+};
 
-// ── GitHub ────────────────────────────────────────────────────────────────────
-const githubClientId     = process.env.GITHUB_CLIENT_ID;
-const githubClientSecret = process.env.GITHUB_CLIENT_SECRET;
+// ── GitHub Strategy ───────────────────────────────────────────────────────────
+const registerGithubStrategy = () => {
+  const clientID     = process.env.GITHUB_CLIENT_ID;
+  const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+  const callbackURL  = process.env.GITHUB_CALLBACK_URL ||
+                       `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/auth/github/callback`;
 
-const isGithubPlaceholder = (v) =>
-  !v ||
-  v.startsWith('your_') ||
-  v.startsWith('YOUR_') ||
-  v.startsWith('PASTE_') ||
-  v.toLowerCase().includes('placeholder') ||
-  v.toLowerCase().includes('your_real') ||
-  v === 'your_github_client_id_here' ||
-  v === 'your_github_client_secret_here';
+  if (!clientID || !clientSecret) {
+    console.warn('[Passport] GitHub strategy NOT registered — missing credentials');
+    return;
+  }
 
-if (!isGithubPlaceholder(githubClientId) && !isGithubPlaceholder(githubClientSecret)) {
-  passport.use(
-    new GitHubStrategy(
-      {
-        clientID:     githubClientId,
-        clientSecret: githubClientSecret,
-        callbackURL:  process.env.GITHUB_CALLBACK_URL ||
-                      `${process.env.BACKEND_URL || 'http://localhost:5000'}/api/auth/github/callback`,
-        scope:        ['user:email'],
-      },
-      async (_accessToken, _refreshToken, profile, done) => {
-        try {
-          const rawEmail = profile.emails?.[0]?.value || `${profile.username}@users.noreply.github.com`;
-          const email      = rawEmail.toLowerCase().trim();
-          const name       = profile.displayName || profile.username || email.split('@')[0];
-          const githubUser = profile.username || '';
-          const avatar     = profile.photos?.[0]?.value || '';
+  console.log('[Passport] Registering GitHub strategy — callbackURL:', callbackURL);
 
-          const user = await findOrCreateOAuthUser({ email, name, avatar, githubUser });
-
-          return done(null, user);
-        } catch (err) {
-          return done(err, null);
-        }
+  passport.use('github', new GitHubStrategy(
+    { clientID, clientSecret, callbackURL, scope: ['user:email'] },
+    async (_accessToken, _refreshToken, profile, done) => {
+      try {
+        console.log('[GitHub Strategy] Profile received — username:', profile.username, '| emails:', profile.emails);
+        const rawEmail = profile.emails?.[0]?.value || `${profile.username}@users.noreply.github.com`;
+        const email      = rawEmail.toLowerCase().trim();
+        const name       = profile.displayName || profile.username || email.split('@')[0];
+        const githubUser = profile.username || '';
+        const avatar     = profile.photos?.[0]?.value || '';
+        const user       = await findOrCreateOAuthUser({ email, name, avatar, githubUser });
+        console.log('[GitHub Strategy] Done — user:', user.email);
+        return done(null, user);
+      } catch (err) {
+        console.error('[GitHub Strategy] Error:', err.message);
+        return done(err, null);
       }
-    )
-  );
-  console.log('[Passport] GitHub OAuth strategy registered');
-} else {
-  console.warn('[Passport] GitHub OAuth not configured — set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in .env');
-}
+    }
+  ));
+  console.log('[Passport] GitHub strategy registered ✓');
+};
+
+// Register both strategies now (env is loaded by the time this module is imported
+// because app.js imports env.js first)
+registerGoogleStrategy();
+registerGithubStrategy();
 
 export default passport;

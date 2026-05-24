@@ -1,0 +1,60 @@
+{
+  "name": "devinspectai",
+  "displayName": "DevInspectAI",
+  "description": "AI-powered code review directly in VS Code — powered by DevInspectAI",
+  "version": "1.0.0",
+  "publisher": "devinspectai",
+  "repository": { "type": "git", "url": "https://github.com/devinspectai/vscode-extension" },
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Linters", "Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "devinspectai.analyze",
+        "title": "Analyze with DevInspectAI",
+        "category": "DevInspectAI"
+      },
+      {
+        "command": "devinspectai.verifyToken",
+        "title": "Verify API Token",
+        "category": "DevInspectAI"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "devinspectai.analyze",
+          "group": "navigation",
+          "when": "editorHasSelection || editorTextFocus"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "DevInspectAI",
+      "properties": {
+        "devinspectai.apiToken": {
+          "type": "string",
+          "default": "",
+          "description": "Your DevInspectAI API token (generate from Settings → VS Code Extension)"
+        },
+        "devinspectai.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:5000",
+          "description": "DevInspectAI backend URL"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -13,6 +13,8 @@ import {
   Brain,
   Flame,
   Trophy,
+  Gamepad2,
+  ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { useStreak } from '@/contexts/StreakContext.jsx';
@@ -25,6 +27,7 @@ const Sidebar = ({ isOpen, onClose }) => {
   const { currentMode, currentUser, logout } = useAuth();
   const { streak } = useStreak();
   const { t } = useTranslation();
+  const [gamesOpen, setGamesOpen] = useState(false);
 
   const navItems = [
     { path: '/dashboard', label: t('nav.dashboard'), icon: LayoutDashboard, color: 'baby-pink' },
@@ -97,7 +100,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           isOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
-        <div className="p-6">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 sidebar-scroll">
           {currentMode && (
             <motion.div 
               initial={{ opacity: 0, y: -10 }}
@@ -156,6 +159,61 @@ const Sidebar = ({ isOpen, onClose }) => {
               );
             })}
           </nav>
+
+          {/* 🎮 Code Break collapsible section */}
+          <div className="mt-4">
+            <button
+              onClick={() => setGamesOpen(o => !o)}
+              className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 group"
+            >
+              <div className="flex items-center gap-2">
+                <Gamepad2 className="h-4 w-4 text-purple-400 group-hover:scale-110 transition-transform" />
+                <span className="text-sm font-bold text-purple-300">🎮 Code Break</span>
+              </div>
+              <motion.div animate={{ rotate: gamesOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                <ChevronDown className="h-4 w-4 text-purple-400" />
+              </motion.div>
+            </button>
+
+            <AnimatePresence>
+              {gamesOpen && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="overflow-hidden mt-1"
+                >
+                  <div className="pl-2 space-y-1 py-1">
+                    {[
+                      { emoji: '🐍', label: 'Snake',             path: '/code-break' },
+                      { emoji: '⭕', label: 'Tic Tac Toe',       path: '/code-break' },
+                      { emoji: '🐞', label: 'Debug Rush',        path: '/code-break' },
+                      { emoji: '🧠', label: 'Memory Hash',       path: '/code-break' },
+                      { emoji: '✊', label: 'Rock Paper Scissors', path: '/code-break' },
+                      { emoji: '🐤', label: 'Flappy Bird',       path: '/code-break' },
+                    ].map((g, i) => (
+                      <motion.div
+                        key={g.label}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.04 }}
+                      >
+                        <Link
+                          to={g.path}
+                          onClick={handleLinkClick}
+                          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-muted-foreground hover:text-purple-300 hover:bg-purple-500/10 transition-all duration-200 group"
+                        >
+                          <span className="text-base group-hover:scale-110 transition-transform">{g.emoji}</span>
+                          <span>{g.label}</span>
+                        </Link>
+                      </motion.div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
 
         <div className="mt-auto p-6 border-t border-border/30">

@@ -10,6 +10,16 @@ const authHeaders = () => ({
   Authorization: `Bearer ${getToken()}`,
 });
 
+// User-scoped localStorage keys — prevents data leaking between accounts
+const getCurrentUserId = () => {
+  try {
+    const u = JSON.parse(localStorage.getItem('devinspect-user') || '{}');
+    return u.id || u._id || 'anonymous';
+  } catch { return 'anonymous'; }
+};
+const rulesKey  = () => `devinspect-rules-${getCurrentUserId()}`;
+const prefsKey  = () => `devinspect-preferences-${getCurrentUserId()}`;
+
 /**
  * Update user profile (name, githubUser, githubToken, generateApiKey)
  */
@@ -46,8 +56,8 @@ export const savePreferences = async (prefs) => {
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Failed to save preferences');
 
-  // Persist locally
-  localStorage.setItem('devinspect-preferences', JSON.stringify(prefs));
+  // Persist locally with user-scoped key
+  localStorage.setItem(prefsKey(), JSON.stringify(prefs));
   return data;
 };
 
@@ -63,10 +73,13 @@ export const saveCustomRules = async (rules) => {
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Failed to save rules');
 
-  // Persist locally
-  localStorage.setItem('devinspect-rules', JSON.stringify(rules));
+  // Persist locally with user-scoped key
+  localStorage.setItem(rulesKey(), JSON.stringify(rules));
   return data;
 };
+
+export const getRulesKey  = rulesKey;
+export const getPrefsKey  = prefsKey;
 
 /**
  * Load user settings (rules + preferences) from backend

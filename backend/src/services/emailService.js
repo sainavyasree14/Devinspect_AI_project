@@ -131,7 +131,69 @@ export const sendWelcomeEmail = async (toEmail, userName) => {
     });
     console.log(`[Email] Welcome email sent to ${toEmail}`);
   } catch (err) {
-    // Never crash the app if email fails
     console.error('[Email] Failed to send welcome email:', err.message);
+  }
+};
+
+export const sendPasswordResetEmail = async (toEmail, userName, resetUrl) => {
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.log('[Email] Skipped — EMAIL_USER/EMAIL_PASS not configured');
+    // In dev, log the reset URL so it can be used without email
+    console.log(`[Dev] Password reset URL: ${resetUrl}`);
+    return;
+  }
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/></head>
+<body style="margin:0;padding:0;background:#1a0a14;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a0a14;padding:40px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#2d1020,#1a0a14);border-radius:20px;border:1px solid rgba(236,72,153,0.2);overflow:hidden;max-width:600px;width:100%;">
+        <tr>
+          <td style="background:linear-gradient(135deg,rgba(236,72,153,0.15),rgba(168,85,247,0.15));padding:40px;text-align:center;border-bottom:1px solid rgba(236,72,153,0.15);">
+            <h1 style="margin:0;font-size:26px;font-weight:800;background:linear-gradient(135deg,#ec4899,#a855f7);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">DevInspectAI</h1>
+            <p style="margin:8px 0 0;color:rgba(255,255,255,0.5);font-size:13px;">Password Reset Request</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:40px;">
+            <h2 style="margin:0 0 12px;font-size:20px;font-weight:700;color:#f9f0f5;">Hi ${userName},</h2>
+            <p style="margin:0 0 20px;color:rgba(255,255,255,0.7);font-size:15px;line-height:1.7;">
+              We received a request to reset your password. Click the button below to create a new password. This link expires in <strong style="color:#ec4899;">1 hour</strong>.
+            </p>
+            <div style="text-align:center;margin:32px 0;">
+              <a href="${resetUrl}" style="display:inline-block;background:linear-gradient(135deg,#ec4899,#a855f7);color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 36px;border-radius:12px;">Reset Password →</a>
+            </div>
+            <p style="margin:0;color:rgba(255,255,255,0.4);font-size:12px;text-align:center;line-height:1.6;">
+              If you didn't request a password reset, you can safely ignore this email.<br/>This link will expire in 1 hour.
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px 40px;border-top:1px solid rgba(236,72,153,0.1);text-align:center;">
+            <p style="margin:0;color:rgba(255,255,255,0.3);font-size:11px;">© ${new Date().getFullYear()} DevInspectAI · All rights reserved</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  try {
+    await transporter.sendMail({
+      from: `"DevInspectAI" <${process.env.EMAIL_USER}>`,
+      to: toEmail,
+      subject: 'Reset your DevInspectAI password',
+      html,
+    });
+    console.log(`[Email] Password reset email sent to ${toEmail}`);
+  } catch (err) {
+    console.error('[Email] Failed to send reset email:', err.message);
+    // Log URL as fallback in dev
+    console.log(`[Dev] Password reset URL: ${resetUrl}`);
   }
 };

@@ -1,9 +1,93 @@
 import express from 'express';
-import { generateInterviewQuestion, evaluateInterviewSolution } from '../services/interviewService.js';
+import { protect } from '../middleware/authMiddleware.js';
+import {
+  generateInterviewSession,
+  evaluateAnswer,
+  generateInterviewSummary,
+  generateInterviewQuestion,
+  evaluateInterviewSolution,
+} from '../services/interviewService.js';
+import InterviewSession from '../models/InterviewSession.js';
 
 const router = express.Router();
 
-// GET /api/interview/question?difficulty=medium&company=Google&category=Arrays
+/* ── POST /api/interview/start — generate 7-8 questions ── */
+router.post('/start', protect, async (req, res) => {
+  try {
+    const { role = 'Software Engineer', domain = '', language = 'JavaScript', difficulty = 'medium', count = 8 } = req.body;
+    const questions = await generateInterviewSession({ role, domain, language, difficulty, count });
+
+    const session = await InterviewSession.create({
+      user: req.user._id,
+      role, domain, language, difficulty,
+      questions,
+      answers: [],
+    });
+
+    res.json({ success: true, sessionId: session._id, questions });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/* ── POST /api/interview/evaluate-answer — evaluate one answer ── */
+router.post('/evaluate-answer', protect, async (req, res) => {
+  try {
+    const { question, answer, timeSpent = 0 } = req.body;
+    if (!question) return res.status(400).json({ success: false, message: 'Question required' });
+
+    const evaluation = await evaluateAnswer(question, answer || '', timeSpent);
+    res.json({ success: true, evaluation });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/* ── POST /api/interview/finish — save session + generate summary ── */
+router.post('/finish', protect, async (req, res) => {
+  try {
+    const { sessionId, answers, totalTime = 0 } = req.body;
+    if (!sessionId) return res.status(400).json({ success: false, message: 'sessionId required' });
+
+    const session = await InterviewSession.findOne({ _id: sessionId, user: req.user._id });
+    if (!session) return res.status(404).json({ success: false, message: 'Session not found' });
+
+    const summary = await generateInterviewSummary(session.questions, answers, totalTime);
+
+    session.answers    = answers;
+    session.totalScore = summary.totalScore;
+    session.maxScore   = summary.maxScore;
+    session.percentage = summary.percentage;
+    session.correct    = summary.correct;
+    session.wrong      = summary.wrong;
+    session.skipped    = summary.skipped;
+    session.totalTime  = totalTime;
+    session.strengths  = summary.strengths;
+    session.weaknesses = summary.weaknesses;
+    session.suggestions= summary.suggestions;
+    session.completed  = true;
+    await session.save();
+
+    res.json({ success: true, summary: { ...summary, overallFeedback: summary.overallFeedback } });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/* ── GET /api/interview/history — user's past sessions ── */
+router.get('/history', protect, async (req, res) => {
+  try {
+    const sessions = await InterviewSession.find({ user: req.user._id, completed: true })
+      .select('-questions -answers')
+      .sort({ createdAt: -1 })
+      .limit(20);
+    res.json({ success: true, sessions });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/* ── Backward-compat routes ── */
 router.get('/question', async (req, res) => {
   try {
     const { difficulty = 'medium', company = '', category = '' } = req.query;
@@ -14,67 +98,38 @@ router.get('/question', async (req, res) => {
   }
 });
 
-// POST /api/interview/session — generate a batch of N questions
 router.post('/session', async (req, res) => {
   try {
-    const { difficulty = 'medium', company = '', categories = [], count = 10 } = req.body;
-    const total = Math.min(Math.max(Number(count) || 10, 5), 12);
-
-    // Build category rotation — if none specified use all
-    const ALL_CATS = [
-      'Arrays', 'Strings', 'Linked Lists', 'Trees', 'Dynamic Programming',
-      'JavaScript', 'React', 'Node.js', 'SQL', 'System Design', 'OOPs', 'Recursion',
-    ];
-    const pool = categories.length > 0 ? categories : ALL_CATS;
-
-    // Generate questions in parallel with staggered categories
-    const promises = Array.from({ length: total }, (_, i) => {
-      const cat = pool[i % pool.length];
-      return generateInterviewQuestion(difficulty, company, cat).catch(() =>
-        generateInterviewQuestion(difficulty, '', cat)
-      );
-    });
-
-    const questions = await Promise.all(promises);
-    // Deduplicate by title
-    const seen = new Set();
-    const unique = questions.filter(q => {
-      if (seen.has(q.title)) return false;
-      seen.add(q.title);
-      return true;
-    });
-
-    res.json({ success: true, questions: unique });
+    const { difficulty = 'medium', role = 'Software Engineer', domain = '', language = 'JavaScript', count = 8 } = req.body;
+    const questions = await generateInterviewSession({ role, domain, language, difficulty, count });
+    res.json({ success: true, questions });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// POST /api/interview/evaluate
 router.post('/evaluate', async (req, res) => {
   try {
     const { question, code, difficulty = 'medium', timeSpent = 0 } = req.body;
+    if (!question) return res.status(400).json({ success: false, message: 'Question is required' });
 
-    if (!question) {
-      return res.status(400).json({ success: false, message: 'Question is required' });
-    }
-
-    // Empty answer guard — enforced on backend too
     const trimmed = (code || '').trim().replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '').trim();
     if (!trimmed || trimmed.length < 10) {
       return res.json({
         success: true,
         result: {
+          userCode: code || '',
+          correctCode: question.solution || question.fixedCode || question.sampleAnswer || 'Not available',
           score: 0,
           passed: false,
-          breakdown: { correctness: 0, codeQuality: 0, edgeCases: 0, optimization: 0, syntaxValidity: 0 },
-          strengths: [],
-          weaknesses: ['No solution provided'],
-          improvements: ['Write at least a brute-force solution before submitting'],
+          correct: false,
+          mistakes: ['No meaningful code was submitted'],
           feedback: 'Empty submission. Please write your solution and try again.',
+          strengths: [],
+          breakdown: { correctness: 0, quality: 0, completeness: 0 },
           timeComplexity: 'N/A',
           spaceComplexity: 'N/A',
-          expectedSolution: question.expectedComplexity || 'See hints',
+          explanation: '',
         },
       });
     }

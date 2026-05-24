@@ -1,8 +1,13 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
+const getAvatarKey = (user) => {
+  const uid = user?.id || user?._id || 'anonymous';
+  return `devinspect-avatar-${uid}`;
+};
+
 const UserAvatar = ({ user, size = 'md', className }) => {
-  const avatar = user?.avatarUrl || localStorage.getItem('devinspect-avatar');
+  const avatar = user?.avatarUrl || localStorage.getItem(getAvatarKey(user));
   const initials = user?.name?.charAt(0).toUpperCase() || 'U';
 
   const sizes = {

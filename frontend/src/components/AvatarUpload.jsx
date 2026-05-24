@@ -1,9 +1,18 @@
 import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Camera, Upload, X } from 'lucide-react';
+import { Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { API_ORIGIN } from '@/lib/apiConfig';
+
+// Scoped by userId — avatars never leak between accounts
+const getAvatarKey = () => {
+  try {
+    const u = JSON.parse(localStorage.getItem('devinspect-user') || '{}');
+    const uid = u.id || u._id || 'anonymous';
+    return `devinspect-avatar-${uid}`;
+  } catch { return 'devinspect-avatar-anonymous'; }
+};
 
 const AvatarUpload = ({ currentAvatar, userName, onAvatarUpdate }) => {
   const [preview, setPreview] = useState(null);
@@ -12,10 +21,7 @@ const AvatarUpload = ({ currentAvatar, userName, onAvatarUpdate }) => {
   const onDrop = useCallback((acceptedFiles) => {
     const file = acceptedFiles[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be under 5MB');
-      return;
-    }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return; }
     const reader = new FileReader();
     reader.onload = (e) => setPreview(e.target.result);
     reader.readAsDataURL(file);
@@ -32,9 +38,8 @@ const AvatarUpload = ({ currentAvatar, userName, onAvatarUpdate }) => {
     setUploading(true);
     try {
       const token = localStorage.getItem('devinspect-token');
-      // Convert base64 to blob
-      const res = await fetch(preview);
-      const blob = await res.blob();
+      const res   = await fetch(preview);
+      const blob  = await res.blob();
       const formData = new FormData();
       formData.append('avatar', blob, 'avatar.jpg');
 
@@ -50,15 +55,13 @@ const AvatarUpload = ({ currentAvatar, userName, onAvatarUpdate }) => {
         setPreview(null);
         toast.success('Avatar updated!');
       } else {
-        // Store locally as fallback
-        localStorage.setItem('devinspect-avatar', preview);
+        localStorage.setItem(getAvatarKey(), preview);
         onAvatarUpdate?.(preview);
         setPreview(null);
         toast.success('Avatar saved locally!');
       }
     } catch {
-      // Fallback: store in localStorage
-      localStorage.setItem('devinspect-avatar', preview);
+      localStorage.setItem(getAvatarKey(), preview);
       onAvatarUpdate?.(preview);
       setPreview(null);
       toast.success('Avatar saved!');
@@ -67,12 +70,11 @@ const AvatarUpload = ({ currentAvatar, userName, onAvatarUpdate }) => {
     }
   };
 
-  const displayAvatar = preview || currentAvatar || localStorage.getItem('devinspect-avatar');
+  const displayAvatar = preview || currentAvatar || localStorage.getItem(getAvatarKey());
   const initials = userName?.charAt(0).toUpperCase() || 'U';
 
   return (
     <div className="flex flex-col items-center gap-4">
-      {/* Avatar Display */}
       <div className="relative">
         <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-border/50 shadow-lg bg-gradient-to-br from-primary/20 to-secondary/20 flex items-center justify-center">
           {displayAvatar ? (
@@ -91,7 +93,6 @@ const AvatarUpload = ({ currentAvatar, userName, onAvatarUpdate }) => {
         )}
       </div>
 
-      {/* Dropzone */}
       <div
         {...getRootProps()}
         className={`w-full max-w-xs border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${

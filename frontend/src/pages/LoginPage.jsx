@@ -14,8 +14,7 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { login } = useAuth();
-  
-  const [email, setEmail] = useState('');
+    const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -49,7 +48,7 @@ const LoginPage = () => {
     setLoading(true);
     try {
       await login(email, password);
-      navigate('/dashboard');
+      navigate('/welcome');
     } catch (err) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {
