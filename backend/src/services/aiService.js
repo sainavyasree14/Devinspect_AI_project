@@ -1,4 +1,60 @@
 import groqService from "./groqService.js";
+import https from 'https';
+
+/* ─── Gemini call ────────────────────────────────── */
+const callGemini = (prompt) => new Promise((resolve) => {
+  if (!process.env.GEMINI_API_KEY) return resolve(null);
+  const body = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.3 },
+  });
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`;
+  const parsed = new URL(url);
+  const req = https.request(
+    { hostname: parsed.hostname, path: parsed.pathname + parsed.search, method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } },
+    (res) => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          resolve(json?.candidates?.[0]?.content?.parts?.[0]?.text || null);
+        } catch { resolve(null); }
+      });
+    }
+  );
+  req.on('error', () => resolve(null));
+  req.write(body);
+  req.end();
+});
+
+/* ─── OpenAI call ────────────────────────────────── */
+const callOpenAI = (prompt) => new Promise((resolve) => {
+  if (!process.env.OPENAI_API_KEY) return resolve(null);
+  const body = JSON.stringify({
+    model: 'gpt-3.5-turbo',
+    messages: [{ role: 'system', content: 'Return only strict JSON output.' }, { role: 'user', content: prompt }],
+    temperature: 0.3,
+  });
+  const req = https.request(
+    { hostname: 'api.openai.com', path: '/v1/chat/completions', method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Length': Buffer.byteLength(body) } },
+    (res) => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          resolve(json?.choices?.[0]?.message?.content || null);
+        } catch { resolve(null); }
+      });
+    }
+  );
+  req.on('error', () => resolve(null));
+  req.write(body);
+  req.end();
+});
 
 /* ─── Mode normalizer ────────────────────────────── */
 export const normalizeMode = (mode) => {
@@ -175,11 +231,34 @@ const extractJSON = (text) => {
   }
 };
 
-/* ─── Groq call ──────────────────────────────────── */
+/* ─── AI call: Gemini → OpenAI → Groq fallback ───── */
 const callAI = async (prompt) => {
-  const rawText = await groqService(prompt);
-  return rawText || null;
+  if (process.env.GEMINI_API_KEY) {
+    const r = await callGemini(prompt);
+    if (r) { console.log('[AI] Using Gemini'); return r; }
+    console.warn('[AI] Gemini failed, trying OpenAI');
+  }
+  if (process.env.OPENAI_API_KEY) {
+    const r = await callOpenAI(prompt);
+    if (r) { console.log('[AI] Using OpenAI'); return r; }
+    console.warn('[AI] OpenAI failed, trying Groq');
+  }
+  if (process.env.GROQ_API_KEY) {
+    const r = await groqService(prompt);
+    if (r) { console.log('[AI] Using Groq'); return r; }
+  }
+  return null;
 };
+
+/* ─── CI-friendly response mapper ────────────────── */
+export const toCIResponse = (result) => ({
+  score:          result.errors?.length > 0 ? Math.max(0, 100 - result.errors.length * 10) : 85,
+  bugs:           (result.errors || []).filter(e => e.category === 'logic' || e.category === 'syntax'),
+  securityIssues: (result.errors || []).filter(e => e.category === 'security'),
+  suggestions:    result.suggestions || [],
+  explanation:    result.explanation || result.modeOutput || '',
+  degraded:       result.degraded || false,
+});
 
 /* ─── Guaranteed fallback matching full schema ───── */
 const fallback = (code, mode) => {
@@ -228,7 +307,8 @@ const normalize = (ai, code, mode) => ({
 export const analyzeContent = async (code, mode) => {
   const finalMode = normalizeMode(mode);
 
-  if (!process.env.GROQ_API_KEY) {
+  const hasAnyKey = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
+  if (!hasAnyKey) {
     return fallback(code, finalMode);
   }
 

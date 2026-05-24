@@ -17,6 +17,15 @@ for (const key of required) {
   }
 }
 
+// Optional AI keys — warn but never crash
+const optionalAI = ['GROQ_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY'];
+const availableAI = optionalAI.filter(k => process.env[k]);
+if (availableAI.length === 0) {
+  console.warn('[ENV] WARNING: No AI API keys set (GROQ_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY). Analysis will run in fallback mode.');
+} else {
+  console.log(`[ENV] AI engines available: ${availableAI.join(', ')}`);
+}
+
 console.log('[ENV] Loaded — JWT_SECRET:', process.env.JWT_SECRET ? 'OK' : 'MISSING');
 console.log('[ENV] GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? 'OK' : 'MISSING');
 console.log('[ENV] GITHUB_CLIENT_ID:', process.env.GITHUB_CLIENT_ID ? 'OK' : 'MISSING');

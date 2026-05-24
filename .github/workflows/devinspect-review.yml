@@ -1,0 +1,54 @@
+name: DevInspectAI Code Review
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  code-review:
+    name: AI Code Review
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Collect changed files
+        id: changed
+        run: |
+          # Get all changed JS/TS/Python files (max 5 for API limits)
+          FILES=$(git diff --name-only HEAD~1 HEAD -- '*.js' '*.ts' '*.py' '*.jsx' '*.tsx' 2>/dev/null | head -5)
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+
+      - name: Run DevInspectAI Review
+        if: steps.changed.outputs.files != ''
+        env:
+          DEVINSPECT_API_KEY: ${{ secrets.DEVINSPECT_API_KEY }}
+          DEVINSPECT_API_URL: ${{ secrets.DEVINSPECT_API_URL || 'http://localhost:5000' }}
+        run: |
+          for FILE in ${{ steps.changed.outputs.files }}; do
+            if [ -f "$FILE" ]; then
+              echo "Reviewing: $FILE"
+              CODE=$(cat "$FILE" | head -c 50000)
+              RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$DEVINSPECT_API_URL/api/ci/review" \
+                -H "X-API-Key: $DEVINSPECT_API_KEY" \
+                -H "Content-Type: application/json" \
+                -d "{\"code\": $(echo "$CODE" | jq -Rs .), \"language\": \"javascript\", \"mode\": \"developer\"}")
+              HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+              BODY=$(echo "$RESPONSE" | head -1)
+              if [ "$HTTP_CODE" != "200" ]; then
+                echo "::warning::DevInspectAI review failed for $FILE (HTTP $HTTP_CODE)"
+              else
+                SCORE=$(echo "$BODY" | jq -r '.analysis.score // "N/A"')
+                echo "::notice::$FILE — Quality Score: $SCORE/100"
+              fi
+            fi
+          done
+
+      - name: Health Check
+        env:
+          DEVINSPECT_API_URL: ${{ secrets.DEVINSPECT_API_URL || 'http://localhost:5000' }}
+        run: |
+          curl -sf "$DEVINSPECT_API_URL/api/ci/health" || echo "DevInspectAI backend not reachable"
