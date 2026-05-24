@@ -5,8 +5,10 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Load .env from backend root (one level up from src/)
-config({ path: resolve(__dirname, '../.env') });
+// Only load .env file locally, not on Render (production)
+if (process.env.NODE_ENV !== 'production') {
+  config({ path: resolve(__dirname, '../.env') });
+}
 
 // Validate critical vars and log status
 const required = ['MONGO_URI', 'JWT_SECRET'];
