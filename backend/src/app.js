@@ -46,10 +46,10 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false,   // set true only with HTTPS in production
-    httpOnly: true,
-    maxAge: 15 * 60 * 1000, // 15 min — only needed during OAuth handshake
-  },
+  secure: process.env.NODE_ENV === 'production',  // ✅
+  httpOnly: true,
+  maxAge: 15 * 60 * 1000,
+}
 }));
 
 app.use(passport.initialize());
